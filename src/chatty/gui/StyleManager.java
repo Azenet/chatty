@@ -1,28 +1,22 @@
 
 package chatty.gui;
 
-import chatty.util.colors.HtmlColors;
 import chatty.gui.components.textpane.ChannelTextPane.Attribute;
 import chatty.gui.components.textpane.ChannelTextPane.Setting;
 import chatty.gui.components.textpane.MyStyleConstants;
-import chatty.util.MiscUtil;
-import chatty.util.colors.ColorCorrectionNew;
 import chatty.util.colors.ColorCorrector;
+import chatty.util.colors.HtmlColors;
 import chatty.util.settings.Settings;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Font;
+
+import javax.swing.*;
+import javax.swing.text.*;
+import java.awt.*;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.logging.Logger;
-import javax.swing.JDialog;
-import javax.swing.JFrame;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-import javax.swing.text.*;
 
 /**
  * Provides style information to other objects based on the settings.
@@ -72,13 +66,14 @@ public class StyleManager implements StyleServer {
     private Color highlightColor;
     private Color searchResultColor;
     private Color searchResultColor2;
+    private Color searchResultColor3;
     private Color infoColor;
-    
+
     private ColorCorrector colorCorrector;
-    
+
     private final Settings settings;
     private final Component dummyComponent = new JDialog();
-    
+
     public StyleManager(Settings settings) {
         this.settings = settings;
         makeStyles();
@@ -106,6 +101,7 @@ public class StyleManager implements StyleServer {
         highlightColor = makeColor("highlightColor");
         searchResultColor = makeColor("searchResultColor");
         searchResultColor2 = makeColor("searchResultColor2");
+        searchResultColor3 = HtmlColors.decode("#1E1C6A", foregroundColor);
         infoColor = makeColor("infoColor");
         
         Style defaultStyle = StyleContext.getDefaultStyleContext().getStyle(StyleContext.DEFAULT_STYLE);
@@ -251,6 +247,8 @@ public class StyleManager implements StyleServer {
                 return searchResultColor;
             case "searchResult2":
                 return searchResultColor2;
+            case "searchResult3":
+                return searchResultColor3;
             case "info":
                 return infoColor;
         }

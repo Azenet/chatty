@@ -2,27 +2,16 @@
 package chatty.gui.components.textpane;
 
 import chatty.Chatty;
-import chatty.gui.components.ChannelEditBox;
 import chatty.Helper;
 import chatty.SettingsManager;
-import chatty.gui.MouseClickedListener;
-import chatty.gui.UserListener;
-import chatty.util.colors.HtmlColors;
-import chatty.gui.LinkListener;
-import chatty.gui.StyleServer;
-import chatty.gui.UrlOpener;
-import chatty.gui.MainGui;
 import chatty.User;
 import chatty.gui.Highlighter.Match;
+import chatty.gui.*;
 import chatty.gui.components.Channel;
-import chatty.util.api.usericons.Usericon;
+import chatty.gui.components.ChannelEditBox;
 import chatty.gui.components.menus.ContextMenuListener;
 import chatty.gui.emoji.EmojiUtil;
-import chatty.util.DateTime;
-import chatty.util.Debugging;
-import chatty.util.MiscUtil;
-import chatty.util.RingBuffer;
-import chatty.util.StringUtil;
+import chatty.util.*;
 import chatty.util.TwitchEmotes.Emoteset;
 import chatty.util.api.CheerEmoticon;
 import chatty.util.api.Emoticon;
@@ -31,37 +20,28 @@ import chatty.util.api.Emoticon.EmoticonUser;
 import chatty.util.api.Emoticons;
 import chatty.util.api.Emoticons.TagEmotes;
 import chatty.util.api.pubsub.ModeratorActionData;
+import chatty.util.api.usericons.Usericon;
 import chatty.util.colors.ColorCorrectionNew;
 import chatty.util.colors.ColorCorrector;
+import chatty.util.colors.HtmlColors;
+
+import javax.swing.*;
+import javax.swing.border.Border;
+import javax.swing.text.*;
+import javax.swing.text.html.HTML;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.AdjustmentEvent;
-import java.awt.event.AdjustmentListener;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
-import java.awt.event.FocusAdapter;
-import java.awt.event.FocusEvent;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseMotionListener;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.text.SimpleDateFormat;
-import java.util.Map.Entry;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import javax.swing.*;
-import static javax.swing.JComponent.WHEN_FOCUSED;
-import javax.swing.border.Border;
-import javax.swing.text.*;
-import javax.swing.text.html.HTML;
 
 
 /**
@@ -1575,6 +1555,27 @@ public class ChannelTextPane extends JTextPane implements LinkListener, Emoticon
                 highlightLine(line, true);
                 currentSelection = line;
 
+                try {
+                    for (int f = 0; f < line.getElementCount(); f++) {
+                        Element e = line.getElement(f);
+
+                        Object attribute = e.getAttributes().getAttribute(Attribute.MENTION);
+                        if (attribute instanceof User) {
+                            User mu = (User) attribute;
+
+                            ArrayList<Integer> lines = getLinesFromUser(mu, null, true);
+                            for (Integer lineNumber : lines) {
+                                Element otherLine = doc.getDefaultRootElement().getElement(lineNumber);
+                                if (otherLine != currentSelection) {
+                                    highlightLine(otherLine, false, true);
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
                 currentUser = user;
                 ArrayList<Integer> lines = getLinesFromUser(user, null, true);
                 for (Integer lineNumber : lines) {
@@ -1587,21 +1588,25 @@ public class ChannelTextPane extends JTextPane implements LinkListener, Emoticon
             }
             return false;
         }
-        
+
+        private void highlightLine(Element element, boolean primary) {
+            highlightLine(element, primary, false);
+        }
+
         /**
          * Changes the background color of the given line and scrolls to it if
          * primary is true.
-         * 
+         *
          * @param element The line to highlight
          * @param primary If true, then it uses a different background color and
          * scrolls to the line
          */
-        private void highlightLine(Element element, boolean primary) {
+        private void highlightLine(Element element, boolean primary, boolean secondary) {
             int startOffset = element.getStartOffset();
             int endOffset = element.getEndOffset() - 1;
             int length = endOffset - startOffset;
 //            MutableAttributeSet style = primary && !subduedHl ? styles.searchResult2(primary) : styles.searchResult(primary);
-            MutableAttributeSet style = primary ? styles.searchResult2(primary) : styles.searchResult(primary);
+            MutableAttributeSet style = primary ? styles.searchResult2(primary) : (secondary?styles.searchResult3() :styles.searchResult(primary));
             doc.setCharacterAttributes(startOffset, length, style, false);
             if (primary) {
                 scrollManager.scrollToOffset(startOffset);
@@ -2371,7 +2376,7 @@ public class ChannelTextPane extends JTextPane implements LinkListener, Emoticon
             }
         }
     }
-    
+
     private int fCount = 0;
     private final Random fRand = new Random();
     private long fSeed;
@@ -3323,7 +3328,11 @@ public class ChannelTextPane extends JTextPane implements LinkListener, Emoticon
             SimpleAttributeSet searchResult2 = new SimpleAttributeSet();
             StyleConstants.setBackground(searchResult2, styleServer.getColor("searchResult2"));
             styles.put("searchResult2", searchResult2);
-            
+
+            SimpleAttributeSet searchResult3 = new SimpleAttributeSet();
+            StyleConstants.setBackground(searchResult3, styleServer.getColor("searchResult3"));
+            styles.put("searchResult3", searchResult3);
+
             SimpleAttributeSet clearSearchResult = new SimpleAttributeSet();
             StyleConstants.setBackground(clearSearchResult, new Color(0,0,0,0));
             StyleConstants.setItalic(clearSearchResult, false);
@@ -3764,6 +3773,10 @@ public class ChannelTextPane extends JTextPane implements LinkListener, Emoticon
         
         public long namesMode() {
             return numericSettings.get(Setting.DISPLAY_NAMES_MODE);
+        }
+
+        public MutableAttributeSet searchResult3() {
+            return styles.get("searchResult3");
         }
     }
     
