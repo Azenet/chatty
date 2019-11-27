@@ -51,7 +51,7 @@ public class ChannelCompletion implements AutoCompletionServer {
     
     private final Set<String> commands = new TreeSet<>(Arrays.asList(new String[]{
         "subscribers", "subscribersOff", "timeout", "ban", "unban", "host", "unhost", "raid", "unraid", "clear", "mods",
-        "part", "close", "reconnect", "slow", "slowOff", "r9k", "r9koff", "emoteOnly", "emoteOnlyOff",
+        "join", "part", "close", "reconnect", "slow", "slowOff", "r9k", "r9koff", "emoteOnly", "emoteOnlyOff",
         "connection", "uptime", "appInfo", "releaseInfo",
         "dir", "wdir", "openDir", "openWdir",
         "showBackupDir", "openBackupDir", "showDebugDir", "openDebugDir",
@@ -63,7 +63,8 @@ public class ChannelCompletion implements AutoCompletionServer {
         "customEmotes", "reloadCustomEmotes", "addStreamHighlight", "openStreamHighlights",
         "ignore", "unignore", "ignoreWhisper", "unignoreWhisper", "ignoreChat", "unignoreChat",
         "follow", "unfollow", "ffzws", "followers", "followersoff",
-        "setcolor", "untimeout", "userinfo", "joinHosted", "favorite", "unfavorite"
+        "setcolor", "untimeout", "userinfo", "joinHosted", "favorite", "unfavorite",
+        "popoutchannel"
     }));
 
     private final Set<String> prefixesPreferUsernames = new HashSet<>(Arrays.asList(new String[]{
@@ -427,22 +428,20 @@ public class ChannelCompletion implements AutoCompletionServer {
         Set<User> customMatched = new HashSet<>();
         Set<User> localizedMatched = new HashSet<>();
         for (User user : users.getData()) {
-            boolean matched = false;
-            if (user.getName().startsWith(search)) {
-                matched = true;
-                regularMatched.add(user);
+            matchUser(user, search, matchedUsers, regularMatched, localizedMatched, customMatched);
+        }
+        
+        // Try to match current channel name if not matched yet
+        if (channel.getRoom().hasStream()) {
+            User channelUser = new User(channel.getStreamName(), Room.EMPTY);
+            boolean channelUserMatched = false;
+            for (User user : matchedUsers) {
+                if (user.getName().equals(channelUser.getName())) {
+                    channelUserMatched = true;
+                }
             }
-            if (!user.hasRegularDisplayNick() && StringUtil.toLowerCase(user.getDisplayNick()).startsWith(search)) {
-                matched = true;
-                localizedMatched.add(user);
-            }
-            if (user.hasCustomNickSet() && StringUtil.toLowerCase(user.getCustomNick()).startsWith(search)) {
-                matched = true;
-                customMatched.add(user);
-            }
-
-            if (matched) {
-                matchedUsers.add(user);
+            if (!channelUserMatched) {
+                matchUser(channelUser, search, matchedUsers, regularMatched, localizedMatched, customMatched);
             }
         }
         switch (main.getSettings().getString("completionSorting")) {
@@ -513,12 +512,45 @@ public class ChannelCompletion implements AutoCompletionServer {
         }
         return new CompletionItems(result, "");
     }
+    
+    private static void matchUser(User user, String search,
+            List<User> matchedUsers, Set<User> regularMatched,
+            Set<User> localizedMatched, Set<User> customMatched) {
+        boolean matched = false;
+        if (user.getName().startsWith(search)) {
+            matched = true;
+            regularMatched.add(user);
+        }
+        if (!user.hasRegularDisplayNick() && StringUtil.toLowerCase(user.getDisplayNick()).startsWith(search)) {
+            matched = true;
+            localizedMatched.add(user);
+        }
+        if (user.hasCustomNickSet() && StringUtil.toLowerCase(user.getCustomNick()).startsWith(search)) {
+            matched = true;
+            customMatched.add(user);
+        }
 
+        if (matched) {
+            matchedUsers.add(user);
+        }
+    }
+
+    /**
+     * Only auto-start if enabled and if it's either one of the fixed prefixes
+     * or the value of "completionEmotePrefix". Also check that there is a space
+     * in front (or nothing).
+     * 
+     * @param prefix
+     * @return 
+     */
     @Override
     public boolean isAutostartPrefix(String prefix) {
-        if (settings().getBoolean("completionAuto")) {
-            return prefix.endsWith(":") || prefix.endsWith("@")
+        if (settings().getBoolean("completionAuto") && !prefix.isEmpty()) {
+            boolean eligible = prefix.endsWith(":")
+                    || prefix.endsWith("@")
                     || prefix.endsWith(settings().getString("completionEmotePrefix"));
+            boolean spaceInFront = prefix.length() == 1 || prefix.charAt(prefix.length() - 2) == ' ';
+            return eligible && spaceInFront;
         }
         return false;
     }
