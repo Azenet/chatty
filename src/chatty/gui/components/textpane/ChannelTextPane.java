@@ -101,7 +101,8 @@ public class ChannelTextPane extends JTextPane implements LinkListener, Emoticon
     private final RingBuffer<MentionCheck> lastUsers = new RingBuffer<>(300);
     
     protected static User hoveredUser;
-    
+    private Integer nameTargetWidth = null;
+
     public enum Attribute {
         BASE_STYLE, ORIGINAL_BASE_STYLE, TIMESTAMP_COLOR_INHERIT,
         TIME_CREATED,
@@ -1839,7 +1840,14 @@ public class ChannelTextPane extends JTextPane implements LinkListener, Emoticon
         else {
             userName = user.getName();
         }
-        
+
+        if (nameTargetWidth == null) {
+            nameTargetWidth = 20;
+        }
+
+        int charWidth = 7;
+        int badgesWidth = user.getBadges(true, true).size() * 18;
+
         // Badges or Status Symbols
         if (styles.isEnabled(Setting.USERICONS_ENABLED)) {
             printUserIcons(user, pointsHl);
@@ -1847,7 +1855,16 @@ public class ChannelTextPane extends JTextPane implements LinkListener, Emoticon
         else {
             userName = user.getModeSymbol()+userName;
         }
-        
+
+        int padding = Math.max(1, (charWidth * (nameTargetWidth - userName.length())) - badgesWidth);
+        print(" ", styles.makePaddingStyle(padding));
+
+        if (userName.length() >= nameTargetWidth) {
+            nameTargetWidth = userName.length()+2;
+        } else if (padding < charWidth) {
+            nameTargetWidth++;
+        }
+
         // Output name
         if (user.hasCategory("rainbow")) {
             printRainbowUser(user, userName, action, SpecialColor.RAINBOW, msgId);
@@ -1885,7 +1902,7 @@ public class ChannelTextPane extends JTextPane implements LinkListener, Emoticon
         // Requires user style because it needs the metadata to detect the end
         // of the nick when deleting messages (and possibly other stuff)
         if (!action && !whisper) {
-            print(":", styles.messageUser(user, msgId, background));
+            print(" ", styles.messageUser(user, msgId, background));
         } else {
             //print(" ", styles.messageUser(user));
         }
@@ -3206,7 +3223,8 @@ public class ChannelTextPane extends JTextPane implements LinkListener, Emoticon
          * only be done once per icon.
          */
         private final HashMap<Usericon, MutableAttributeSet> savedIcons = new HashMap<>();
-        
+        private final HashMap<Integer, MutableAttributeSet> savedPaddingIcons = new HashMap<>();
+
         /**
          * Creates a new ImageIcon based on the given ImageIcon that has a small
          * space on the side, so it can be displayed properly.
@@ -3217,13 +3235,17 @@ public class ChannelTextPane extends JTextPane implements LinkListener, Emoticon
         private ImageIcon addSpaceToIcon(ImageIcon icon) {
             int width = icon.getIconWidth();
             int height = icon.getIconHeight();
-            int hspace = 3;
+            int hspace = 0;
             BufferedImage res = new BufferedImage(width + hspace, height, BufferedImage.TYPE_INT_ARGB);
             Graphics g = res.getGraphics();
             g.drawImage(icon.getImage(), 0, 0, null);
             g.dispose();
 
             return new ImageIcon(res);
+        }
+
+        private ImageIcon createBlankPaddingImage(int width) {
+            return new ImageIcon(new BufferedImage(width, 1, BufferedImage.TYPE_INT_ARGB));
         }
         
         /**
@@ -3745,6 +3767,16 @@ public class ChannelTextPane extends JTextPane implements LinkListener, Emoticon
                     style.addAttribute(Attribute.USERICON, icon);
                 }
                 savedIcons.put(icon, style);
+            }
+            return style;
+        }
+
+        public MutableAttributeSet makePaddingStyle(int width) {
+            MutableAttributeSet style = savedPaddingIcons.get(width);
+            if (style == null) {
+                style = new SimpleAttributeSet(nick());
+                StyleConstants.setIcon(style, createBlankPaddingImage(width));
+                savedPaddingIcons.put(width, style);
             }
             return style;
         }
