@@ -139,7 +139,7 @@ public class SettingsManager {
         settings.addBoolean("membershipEnabled", true);
         settings.addString("pubsub", "wss://pubsub-edge.twitch.tv");
         
-        settings.addLong("maxReconnectionAttempts", 40);
+        settings.addLong("maxReconnectionAttempts", -1);
 
         // Auto-join channels
         settings.addString("channel", "");
@@ -172,7 +172,12 @@ public class SettingsManager {
         settings.addString("lafTheme","Default");
         settings.addMap("lafCustomTheme", new HashMap<>(), Setting.STRING);
         settings.addLong("lafFontScale", 100);
-        
+        settings.addString("lafForeground", "#B4BEB9");
+        settings.addString("lafBackground", "#323433");
+        settings.addLong("lafGradient", 5);
+        settings.addLong("lafVariant", 0);
+        settings.addString("lafStyle", "regular");
+        settings.addString("lafScroll", "default");
         settings.addString("language", "");
         
         settings.addLong("dialogFontSize", -1);
@@ -305,6 +310,7 @@ public class SettingsManager {
         settings.addBoolean("closeUserDialogOnAction", true);
         settings.addBoolean("openUserDialogByMouse", true);
         settings.addBoolean("reuseUserDialog", false);
+        settings.addString("userDialogTimestamp", "[HH:mm:ss]");
         settings.addLong("clearUserMessages", 12);
 
         // History / Favorites
@@ -438,9 +444,6 @@ public class SettingsManager {
         //==============
         // Notifications
         //==============
-        settings.addString("highlightNotification", "either");
-        settings.addString("statusNotification", "either");
-        settings.addBoolean("ignoreOfflineNotifications", false);
         settings.addBoolean("requestFollowedStreams", true);
         
         settings.addLong("nType", NotificationSettings.NOTIFICATION_TYPE_CUSTOM);
@@ -453,6 +456,7 @@ public class SettingsManager {
         settings.addBoolean("nActivity", false);
         settings.addLong("nActivityTime", 10);
         settings.addString("nCommand", "");
+        settings.addBoolean("nHideOnStart", false);
 
         settings.addList("notifications", getDefaultNotificationSettingValue(), Setting.LIST);
         settings.addList("nColorPresets", new ArrayList<>(), Setting.LIST);
@@ -924,8 +928,8 @@ public class SettingsManager {
      * @return 
      */
     private List<List> getDefaultNotificationSettingValue() {
-        String hl = settings.getString("highlightNotification");
-        String st = settings.getString("statusNotification");
+        String hl = "either";
+        String st = "either";
         
         Notification.Builder hlNew = new Notification.Builder(Notification.Type.HIGHLIGHT);
         hlNew.setForeground(Color.BLACK);
@@ -936,9 +940,6 @@ public class SettingsManager {
         stNew.setForeground(Color.BLACK);
         stNew.setBackground(HtmlColors.decode("#FFFFF0"));
         stNew.setDesktopEnabled(convertOldState(st));
-        if (settings.getBoolean("ignoreOfflineNotifications")) {
-            stNew.setOptions(Arrays.asList("noOffline"));
-        }
         
         List<List> result = new ArrayList<>();
         result.add(new Notification(hlNew).toList());

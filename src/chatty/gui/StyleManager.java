@@ -4,6 +4,7 @@ package chatty.gui;
 import chatty.gui.components.textpane.ChannelTextPane.Attribute;
 import chatty.gui.components.textpane.ChannelTextPane.Setting;
 import chatty.gui.components.textpane.MyStyleConstants;
+import chatty.util.DateTime;
 import chatty.util.colors.ColorCorrector;
 import chatty.util.colors.HtmlColors;
 import chatty.util.settings.Settings;
@@ -315,11 +316,15 @@ public class StyleManager implements StyleServer {
     
     @Override
     public SimpleDateFormat getTimestampFormat() {
-        String timestamp = settings.getString("timestamp");
+        return makeTimestampFormat("timestamp", null);
+    }
+
+    public SimpleDateFormat makeTimestampFormat(String setting, SimpleDateFormat defaultValue) {
+        String timestamp = settings.getString(setting);
         String timezone = settings.getString("timestampTimezone");
         if (!timestamp.equals("off")) {
             try {
-                SimpleDateFormat sdf = new SimpleDateFormat(timestamp);
+                SimpleDateFormat sdf = DateTime.createSdfAmPm(timestamp);
                 if (!timezone.isEmpty() && !timezone.equalsIgnoreCase("local")) {
                     sdf.setTimeZone(TimeZone.getTimeZone(timezone));
                 }
@@ -328,7 +333,7 @@ public class StyleManager implements StyleServer {
                 LOGGER.warning("Invalid timestamp: "+timestamp);
             }
         }
-        return null;
+        return defaultValue;
     }
 
     @Override
