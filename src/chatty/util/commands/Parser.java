@@ -3,7 +3,9 @@ package chatty.util.commands;
 
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -18,9 +20,14 @@ public class Parser {
     private final String input;
     private final StringReader reader;
     
-    public Parser(String text) {
+    private String escape = "\\";
+    private String special = "$";
+    
+    public Parser(String text, String special, String escape) {
         input = text;
         reader = new StringReader(text);
+        this.special = special;
+        this.escape = escape;
     }
     
     /**
@@ -30,6 +37,12 @@ public class Parser {
      * @throws ParseException 
      */
     Items parse() throws ParseException {
+        if (special.length() > 1 || escape.length() > 1) {
+            error("Special/escape must each be a single character", 0);
+        }
+        if (special.equals(escape) && !escape.isEmpty()) {
+            error("Special and escape must not be equal", 0);
+        }
         return parse(null);
     }
     
@@ -45,9 +58,16 @@ public class Parser {
     private Items parse(String to) throws ParseException {
         Items items = new Items();
         while (reader.hasNext() && (to == null || !reader.peek().matches(to))) {
-            if (accept("$")) {
-                items.add(specialThing());
-            } else if (accept("\\")) {
+            if (accept(special)) {
+                Item item = specialThing();
+                if (to == null) {
+                    // Top-level item
+                    items.add(new SpecialEscape(item));
+                }
+                else {
+                    items.add(item);
+                }
+            } else if (accept(escape)) {
                 if (reader.hasNext()) {
                     // Just read next character as literal
                     items.add(reader.next());
@@ -91,12 +111,11 @@ public class Parser {
         return reader.hasNext() && reader.peek().equals(character);
     }
     
-    private boolean acceptMatch(String regex) {
+    private String acceptMatch(String regex) {
         if (reader.hasNext() && reader.peek().matches(regex)) {
-            reader.next();
-            return true;
+            return reader.next();
         }
-        return false;
+        return null;
     }
     
     /**
@@ -140,6 +159,8 @@ public class Parser {
         return "";
     }
     
+    private static final String QUOTES = "[\"`']";
+    
     /**
      * Parse stuff that occurs after a '$'.
      * 
@@ -147,7 +168,16 @@ public class Parser {
      * @throws ParseException 
      */
     private Item specialThing() throws ParseException {
-        boolean isRequired = accept("$");
+        String quote;
+        if ((quote = acceptMatch(QUOTES)) != null) {
+            return literal(quote);
+        }
+        // Not quite sure yet how this feature should work exactly
+//        String escapeCharacter = readOne("[^\\Q"+special+"\\Ea-zA-Z0-9()]");
+//        if (escapeCharacter.length() == 1) {
+//            return changedEscapeCharacter(escapeCharacter);
+//        }
+        boolean isRequired = accept(special);
         String type = functionName();
         if (type.isEmpty()) {
             return replacement(isRequired);
@@ -160,6 +190,9 @@ public class Parser {
         }
         else if (type.equals("ifeq")) {
             return ifEq(isRequired);
+        }
+        else if (type.equals("switch")) {
+            return switchFunc(isRequired);
         }
         else if (type.equals("lower")) {
             return lower(isRequired);
@@ -185,6 +218,21 @@ public class Parser {
         else if (type.equals("replace")) {
             return replace(isRequired);
         }
+        else if (type.equals("is")) {
+            return is(isRequired);
+        }
+        else if (type.equals("get")) {
+            return get(isRequired);
+        }
+        else if (type.equals("calc")) {
+            return calc(isRequired);
+        }
+        else if (type.equals("input")) {
+            return input(isRequired);
+        }
+        else if (type.equals("request")) {
+            return request(isRequired);
+        }
         else {
             error("Invalid function '"+type+"'", 0);
             return null;
@@ -198,10 +246,10 @@ public class Parser {
      */
     private Item identifier() throws ParseException {
         String ref = readAll("[a-zA-Z0-9-_]");
-        Matcher m = Pattern.compile("([0-9]+)(-)?").matcher(ref);
         if (ref.isEmpty()) {
             error("Expected identifier", 1);
         }
+        Matcher m = Pattern.compile("([0-9]+)(-)?").matcher(ref);
         if (m.matches()) {
             int index = Integer.parseInt(m.group(1));
             if (index == 0) {
@@ -256,6 +304,33 @@ public class Parser {
         }
         expect(")");
         return new IfEq(identifier, isRequired, compare, output1, output2);
+    }
+    
+    private Item switchFunc(boolean isRequired) throws ParseException {
+        expect("(");
+        Item identifier = peekParam();
+        Item def = new Items();
+        expect(",");
+        Map<Item, Item> cases = new LinkedHashMap<>();
+        do {
+            Item key = parse("[,):]");
+            if (accept(":")) {
+                if (cases.containsKey(key)) {
+                    error("Duplicate case: "+key, 0);
+                }
+                cases.put(key, param());
+            }
+            else {
+                // Default case must be the last one
+                def = key;
+                break;
+            }
+        } while (accept(","));
+        expect(")");
+        if (cases.isEmpty()) {
+            error("No case found", -1);
+        }
+        return new Switch(identifier, cases, def, isRequired);
     }
     
     private Item join(boolean isRequired) throws ParseException {
@@ -357,16 +432,106 @@ public class Parser {
         return new Replace(item, search, replace, isRequired, type);
     }
     
+    private Item is(boolean isRequired) throws ParseException {
+        expect("(");
+        Item item = param();
+        expect(")");
+        return new Is(item, isRequired);
+    }
+    
+    private Item get(boolean isRequired) throws ParseException {
+        expect("(");
+        Item item = param();
+        Item item2 = null;
+        if (accept(",")) {
+            item2 = param();
+        }
+        expect(")");
+        return new Get(item, item2, isRequired);
+    }
+    
+    private Item calc(boolean isRequired) throws ParseException {
+        expect("(");
+        Item item = param();
+        expect(")");
+        return new Calc(item, isRequired);
+    }
+    
+    private Item input(boolean isRequired) throws ParseException {
+        expect("(");
+        Item message = param();
+        Item initial = null;
+        Item type = null;
+        if (accept(",")) {
+            initial = param();
+        }
+        if (accept(",")) {
+            type = param();
+        }
+        expect(")");
+        return new Input(type, message, initial, isRequired);
+    }
+    
+    private Item request(boolean isRequired) throws ParseException {
+        expect("(");
+        Item url = param();
+        List<Item> options = new ArrayList<>();
+        if (accept(",")) {
+            do {
+                options.add(param());
+            } while (accept(","));
+        }
+        expect(")");
+        return new Request(url, options, isRequired);
+    }
+    
     private Replacement replacement(boolean isRequired) throws ParseException {
         if (accept("(")) {
             Item identifier = identifier();
+            Item args = null;
+            if (accept(",")) {
+                args = param();
+            }
             expect(")");
-            return new Replacement(identifier, isRequired);
+            return new Replacement(identifier, args, isRequired);
         }
         else {
             Item identifier = tinyIdentifier();
-            return new Replacement(identifier, isRequired);
+            return new Replacement(identifier, null, isRequired);
         }
+    }
+    
+    private Item literal(String quote) throws ParseException {
+        StringBuilder b = new StringBuilder();
+        while (reader.hasNext()) {
+            if (reader.peek().equals(quote)) {
+                reader.next();
+                if (reader.hasNext() && reader.peek().equals(quote)) {
+                    b.append(reader.next());
+                }
+                else {
+                    break;
+                }
+            }
+            else {
+                b.append(reader.next());
+            }
+        }
+        // Ending quote would have already been consumed
+        return new Literal(b.toString());
+    }
+    
+    private Item changedEscapeCharacter(String escapeCharacter) throws ParseException {
+        String quote = acceptMatch(QUOTES);
+        if (quote == null) {
+            error("Expected one of: "+QUOTES, 1);
+        }
+        String currentEscape = escape;
+        escape = escapeCharacter;
+        Item result = parse(quote);
+        expect(quote);
+        escape = currentEscape;
+        return result;
     }
     
     private String functionName() {

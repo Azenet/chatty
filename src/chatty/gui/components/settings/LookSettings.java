@@ -23,7 +23,7 @@ public class LookSettings extends SettingsPanel {
 
         JPanel lafSettingsPanel = addTitledPanel(Language.getString("settings.section.lookandfeel"), 1);
         JPanel fontScalePanel = addTitledPanel("Font Scale (experimental)", 2);
-        JPanel previewPanel = addTitledPanel("Preview", 3);
+        JPanel previewPanel = addTitledPanel(Language.getString("settings.section.preview"), 3);
         
         GridBagConstraints gbc;
         
@@ -80,8 +80,16 @@ public class LookSettings extends SettingsPanel {
         // LaF Settings
         //==========================
         ColorChooser colorChooser = new ColorChooser(d);
-        ColorSetting foregroundColor = new ColorSetting(ColorSetting.FOREGROUND, "lafBackground", "Foreground", "Foreground", colorChooser);
-        ColorSetting backgroundColor = new ColorSetting(ColorSetting.BACKGROUND, "lafForeground", "Background", "Background", colorChooser);
+        ColorSetting foregroundColor = new ColorSetting(ColorSetting.FOREGROUND,
+                "lafBackground",
+                Language.getString("settings.general.foreground"),
+                Language.getString("settings.general.foreground"),
+                colorChooser);
+        ColorSetting backgroundColor = new ColorSetting(ColorSetting.BACKGROUND,
+                "lafForeground",
+                Language.getString("settings.general.background"),
+                Language.getString("settings.general.background"),
+                colorChooser);
         ColorSettingListener colorChangeListener = new ColorSettingListener() {
 
             @Override
@@ -100,6 +108,7 @@ public class LookSettings extends SettingsPanel {
         ComboLongSetting lafVariant = d.addComboLongSetting("lafVariant", 0, 1, 2, 3, 4);
         ComboStringSetting lafStyle = d.addComboStringSetting("lafStyle", false,
                 "classic", "classicStrong", "regular", "regularStrong", "simple", "sleek", "minimal");
+        SimpleBooleanSetting lafNativeWindow = d.addSimpleBooleanSetting("lafNativeWindow");
         
         //--------------------------
         // Font Scale
@@ -143,17 +152,20 @@ public class LookSettings extends SettingsPanel {
         
         // Scrollbar
         gbc = d.makeGbc(0, 3, 1, 1, GridBagConstraints.EAST);
-        lafSettingsPanel.add(d.createLabel("lafScroll"), gbc);
+        lafSettingsPanel.add(SettingsUtil.createLabel("lafScroll"), gbc);
         
         gbc = d.makeGbc(1, 3, 3, 1, GridBagConstraints.WEST);
         lafSettingsPanel.add(lafScroll, gbc);
         
         // Style
         gbc = d.makeGbc(0, 8, 1, 1, GridBagConstraints.EAST);
-        lafSettingsPanel.add(d.createLabel("lafStyle"), gbc);
+        lafSettingsPanel.add(SettingsUtil.createLabel("lafStyle"), gbc);
         
         gbc = d.makeGbc(1, 8, 1, 1, GridBagConstraints.WEST);
         lafSettingsPanel.add(lafStyle, gbc);
+        
+        gbc = d.makeGbc(2, 8, 2, 1, GridBagConstraints.WEST);
+        lafSettingsPanel.add(lafNativeWindow, gbc);
         
         // Colors
         gbc = d.makeGbc(0, 10, 1, 1, GridBagConstraints.EAST);
@@ -169,19 +181,20 @@ public class LookSettings extends SettingsPanel {
         
         // Variant
         gbc = d.makeGbc(0, 9, 1, 1, GridBagConstraints.EAST);
-        lafSettingsPanel.add(d.createLabel("lafVariant"), gbc);
+        lafSettingsPanel.add(SettingsUtil.createLabel("lafVariant"), gbc);
         
         gbc = d.makeGbc(1, 9, 1, 1, GridBagConstraints.WEST);
         lafSettingsPanel.add(lafVariant, gbc);
         
         // Gradient
         gbc = d.makeGbc(2, 9, 1, 1);
-        lafSettingsPanel.add(d.createLabel("lafGradient"), gbc);
+        lafSettingsPanel.add(SettingsUtil.createLabel("lafGradient"), gbc);
         
         gbc = d.makeGbc(3, 9, 1, 1, GridBagConstraints.WEST);
         lafSettingsPanel.add(lafGradient, gbc);
 
         SettingsUtil.addSubsettings(laf, s -> s.equals("hifiCustom"), foregroundColor, backgroundColor, lafGradient, lafStyle);
+        SettingsUtil.addSubsettings(laf, s -> !s.equals("default") && !s.equals("system"), lafNativeWindow);
         
         //--------------------------
         // Font Scale
@@ -202,8 +215,7 @@ public class LookSettings extends SettingsPanel {
         // Preview
         //==========================
         gbc = d.makeGbc(0, 1, 1, 1);
-        previewPanel.add(new JLabel(SettingConstants.HTML_PREFIX+"Preview the current settings on this page. "
-                + "A restart of Chatty is required for some things to show up correctly after changing settings."), gbc);
+        previewPanel.add(new JLabel(SettingConstants.HTML_PREFIX+Language.getString("settings.laf.previewInfo")), gbc);
         
         gbc = d.makeGbc(0, 4, 1, 1);
         previewPanel.add(lafPreviewButton, gbc);
@@ -219,7 +231,7 @@ public class LookSettings extends SettingsPanel {
             text += "This Look&Feel differs depending what OS you are using.";
         }
         else {
-            text += "No window snapping. ";
+            text += "No window snapping (unless you enable using the native window, see [help-laf:native-window help]). ";
             if (selected.equals("hifiCustom")) {
                 text += "Allows some basic customization here. ";
             }

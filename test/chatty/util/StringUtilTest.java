@@ -4,6 +4,7 @@ package chatty.util;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import org.junit.Assert;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -57,7 +58,11 @@ public class StringUtilTest {
         assertEquals(StringUtil.join(list, ", ", 1), "b, c");
         assertEquals(StringUtil.join(list, ", ", 0, 2), "a, b");
         assertEquals(StringUtil.join(list, ", ", -1, 2), "a, b");
+        assertEquals(StringUtil.join(list, ", ", -10, 2), "a, b");
         assertEquals(StringUtil.join(list, ", ", 1, 2), "b");
+        assertEquals(StringUtil.join(list, ", ", 10, 2), "");
+        assertEquals(StringUtil.join(list, "-", 0, 100), "a-b-c");
+        assertEquals(StringUtil.join(list, ", ", 2), "c");
         assertEquals(StringUtil.join(list, ", ", 3), "");
         list.add(" d");
         assertEquals(StringUtil.join(list, ", "), "a, b, c,  d");
@@ -141,6 +146,39 @@ public class StringUtilTest {
     
     private static void testSplit2(char split, char quote, char escape, int limit, int remove, String input, String... result) {
         assertEquals(Arrays.asList(result), StringUtil.split(input, split, quote, escape, limit, remove));
+    }
+    
+    @Test
+    public void testSplitLines() {
+        assertArrayEquals(StringUtil.splitLines("a"), new String[]{"a"});
+        assertArrayEquals(StringUtil.splitLines("a\nb"), new String[]{"a","b"});
+        assertArrayEquals(StringUtil.splitLines("a\rb"), new String[]{"a","b"});
+        assertArrayEquals(StringUtil.splitLines("a\r\nb"), new String[]{"a","b"});
+        assertArrayEquals(StringUtil.splitLines("a\n\rb"), new String[]{"a","","b"}); // Invalid linebreak
+    }
+    
+    @Test
+    public void testReplaceFunc() {
+        assertEquals("a b c ", StringUtil.replaceFunc("~abc~", "~([a-z]+)~", m -> {
+            return m.group(1).replaceAll("([a-z])", "$1 ");
+        }));
+    }
+    
+    @Test
+    public void testSimilarity() {
+        assertEquals(1, StringUtil.getSimilarity("", ""), 0);
+        assertEquals(0, StringUtil.getSimilarity("a", ""), 0);
+        assertEquals(0, StringUtil.getSimilarity("a", "b"), 0);
+        assertEquals(0.6, StringUtil.getSimilarity("abc", "ab"), 0.1);
+        assertEquals(0.8, StringUtil.getSimilarity("abcd", "abc"), 0.1);
+        assertEquals(0.83, StringUtil.getSimilarity("This is a longer message", "This is a message that's longer"), 0.1);
+        
+        assertTrue(StringUtil.checkSimilarity("", "", 0));
+        assertTrue(StringUtil.checkSimilarity("", "", 1));
+        assertTrue(StringUtil.checkSimilarity("a", "", 0));
+        assertFalse(StringUtil.checkSimilarity("a", "", 0.1f));
+        
+        assertTrue(StringUtil.checkSimilarity("This is a longer message", "This is a message that's longer", 0.8f));
     }
     
 }

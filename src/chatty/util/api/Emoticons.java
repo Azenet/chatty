@@ -4,6 +4,7 @@ package chatty.util.api;
 import chatty.Chatty;
 import chatty.Helper;
 import chatty.gui.emoji.EmojiUtil;
+import chatty.util.CombinedEmoticon;
 import chatty.util.StringUtil;
 import chatty.util.settings.Settings;
 import java.awt.Color;
@@ -63,8 +64,8 @@ public class Emoticons {
         EMOTICONS_MAP.put("\\;-?\\)", ";)");
         EMOTICONS_MAP.put("\\:-?(o|O)", ":O");
         EMOTICONS_MAP.put("\\:-?\\)", ":)");
-        EMOTICONS_MAP.put("\\;-?(p|P)", ";P");
-        EMOTICONS_MAP.put("[oO](_|\\.)[oO]", "o_O");
+        EMOTICONS_MAP.put("\\;-?(p|P)", ";p");
+        EMOTICONS_MAP.put("[oO](_|\\.)[oO]", "O_o");
         EMOTICONS_MAP.put(">\\(", ">(");
         EMOTICONS_MAP.put("\\:-?(?:\\/|\\\\)(?!\\/)", ":/");
         EMOTICONS_MAP.put("\\:-?\\(", ":(");
@@ -75,7 +76,7 @@ public class Emoticons {
         EMOTICONS_MAP.put("\\:-?(S|s)", ":S");
         EMOTICONS_MAP.put("#-?[\\\\/]", "#/");
         EMOTICONS_MAP.put("<\\]", "<]");
-        EMOTICONS_MAP.put("\\:-?[\\\\/]", ":/");
+        EMOTICONS_MAP.put("\\:-?[\\\\/]", ":\\");
         EMOTICONS_MAP.put("\\:-?\\)", ":)");
     }
     
@@ -127,6 +128,8 @@ public class Emoticons {
      * Emoticons restricted to a channel (FrankerFaceZ/BTTV).
      */
     private final HashMap<String,HashSet<Emoticon>> streamEmoticons = new HashMap<>();
+    
+    private final Map<String, Emoticon> combinedEmotes = new HashMap<>();
     
     //===============
     // Usable Emotes
@@ -433,6 +436,18 @@ public class Emoticons {
         return result;
     }
     
+    public Emoticon getCombinedEmote(List<Emoticon> emotes) {
+        emotes = new ArrayList<>(emotes);
+        String code = CombinedEmoticon.getCode(emotes);
+        Emoticon emote = combinedEmotes.get(code);
+        if (emote != null) {
+            return emote;
+        }
+        emote = CombinedEmoticon.create(emotes, code);
+        combinedEmotes.put(code, emote);
+        return emote;
+    }
+    
     public Collection<Emoticon> getLocalTwitchEmotes() {
         return usableGlobalEmotes;
     }
@@ -696,6 +711,15 @@ public class Emoticons {
             return emoteCode;
         }
         return writeable;
+    }
+    
+    public static final String toRegex(String emoteCode) {
+        for (Map.Entry<String, String> entry : EMOTICONS_MAP.entrySet()) {
+            if (entry.getValue().equals(emoteCode)) {
+                return entry.getKey();
+            }
+        }
+        return emoteCode;
     }
     
     

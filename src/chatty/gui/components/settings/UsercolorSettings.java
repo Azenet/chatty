@@ -26,17 +26,7 @@ import javax.swing.table.TableCellRenderer;
 public class UsercolorSettings extends SettingsPanel {
     
     private static final String INFO_TEXT = "<html><body style='width:105px'>"
-            + "Add items to the list to assign them colors. The order matters, items "
-            + "on the top are matched first.<br /><br />"
-            + "Special Items:<br />"
-            + "$mod - Moderators<br />"
-            + "$sub - Subscribers<br />"
-            + "$turbo - Turbo Users<br />"
-            + "$admin - Admin<br />"
-            + "$staff - Staff<br />"
-            + "$all - All Users<br />"
-            + "<br />"
-            + "[help:Usercolors And more..]";
+            +SettingsUtil.getInfo("info-usercolors.html", null);
     
     private final ItemColorEditor<UsercolorItem> data;
     private Color defaultBackgroundColor;
@@ -93,7 +83,7 @@ public class UsercolorSettings extends SettingsPanel {
         otherPanel.add(colorCorrectionPreview,
                 d.makeGbc(2, 0, 1, 1));
         
-        otherPanel.add(d.createLabel("nickColorBackground"),
+        otherPanel.add(SettingsUtil.createLabel("nickColorBackground"),
                 d.makeGbc(0, 1, 1, 1, GridBagConstraints.EAST));
         
         otherPanel.add(d.addComboLongSetting("nickColorBackground", 0, 1, 2),
@@ -102,7 +92,7 @@ public class UsercolorSettings extends SettingsPanel {
         JCheckBox coloredNamesInUserlist = d.addSimpleBooleanSetting(
             "displayColoredNamesInUserlist",
             Language.getString("settings.label.displayColoredNamesInUserlist"),
-            "");
+            null);
         otherPanel.add(coloredNamesInUserlist, d.makeGbc(0, 2, 2, 1, GridBagConstraints.WEST));
     }
     

@@ -118,15 +118,21 @@ public class InfoPanel extends JPanel {
             return;
         }
         if (currentUser != null) {
-            firstSeen.setText(new String[]{
-                String.format("First seen: %s ago", formatAgoTime(currentUser.getCreatedAt(), false)),
-                String.format("First seen: %s ago", formatAgoTime(currentUser.getCreatedAt(), true))
-            });
-            firstSeen.setToolTipText(String.format("<html>First seen: %s ago (%s)"
-                    + "<br /><br />"
-                    + "(Could mean the first message or when the user first joined, during this Chatty session)",
-                    formatAgoTimeVerbose(currentUser.getCreatedAt()),
-                    DateTime.formatFullDatetime(currentUser.getCreatedAt())));
+            if (currentUser.getFirstSeen() == -1) {
+                firstSeen.setText("First seen: n/a");
+                firstSeen.setToolTipText(null);
+            }
+            else {
+                firstSeen.setText(new String[]{
+                    String.format("First seen: %s ago", formatAgoTime(currentUser.getFirstSeen(), false)),
+                    String.format("First seen: %s ago", formatAgoTime(currentUser.getFirstSeen(), true))
+                });
+                firstSeen.setToolTipText(String.format("<html>First seen: %s ago (%s)"
+                        + "<br /><br />"
+                        + "(Could mean the first message or when the user first joined, during this Chatty session)",
+                        formatAgoTimeVerbose(currentUser.getFirstSeen()),
+                        DateTime.formatFullDatetime(currentUser.getFirstSeen())));
+            }
         }
         infoLabelSize.check();
     }
@@ -146,10 +152,12 @@ public class InfoPanel extends JPanel {
 
         if (currentUser.hasCustomColor()) {
             Color plainColor = currentUser.getPlainColor();
-            colorText = "Color: "+colorNamed+"**";
-            colorTooltipText = "Custom Color: "+colorCode
-                    +" (Original: "+HtmlColors.getNamedColorString(plainColor)+"/"
-                    + HtmlColors.getColorString(plainColor)+")";
+            colorText = "Color: "+colorNamed+"**"+(currentUser.hasDefaultColor() ? "*" : "");
+            colorTooltipText = String.format("Custom Color: %s (Original: %s/%s%s)",
+                    colorCode,
+                    HtmlColors.getNamedColorString(plainColor),
+                    HtmlColors.getColorString(plainColor),
+                    currentUser.hasDefaultColor() ? " (default)" : "");
         } else if (currentUser.hasDefaultColor()) {
             colorText = "Color: "+colorNamed+"*";
             colorTooltipText = "Color: "+colorCode+" (default)";
@@ -220,8 +228,8 @@ public class InfoPanel extends JPanel {
                     !StringUtil.isNullOrEmpty(info.description)
                             ? StringUtil.addLinebreaks(Helper.htmlspecialchars_encode(info.description), 70, true)
                             : "No description",
-                    info.status,
-                    info.game,
+                    Helper.htmlspecialchars_encode(info.status),
+                    Helper.htmlspecialchars_encode(info.game),
                     Helper.formatViewerCount(info.views),
                     Helper.formatViewerCount(info.followers),
                     formatAgoTimeVerbose(info.createdAt),

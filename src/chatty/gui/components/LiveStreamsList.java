@@ -4,12 +4,15 @@ package chatty.gui.components;
 import chatty.ChannelFavorites;
 import chatty.ChannelFavorites.ChangeListener;
 import chatty.Helper;
+import chatty.gui.DockedDialogHelper;
+import chatty.gui.GuiUtil;
 import chatty.gui.components.JListActionHelper.Action;
 import chatty.gui.components.menus.ContextMenuListener;
 import chatty.gui.components.menus.StreamInfosContextMenu;
 import chatty.util.DateTime;
 import chatty.util.ElapsedTime;
 import chatty.util.api.StreamInfo;
+import chatty.util.settings.Settings;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.event.ActionEvent;
@@ -55,6 +58,7 @@ public class LiveStreamsList extends JList<StreamInfo> {
      * Holds a copy of the current channel favorites.
      */
     private final Set<String> favs = new HashSet<>();
+    private final Set<String> gameFavs = new HashSet<>();
     
     /**
      * How long after the last stream status change, that it uses the TITLE_NEW
@@ -67,6 +71,7 @@ public class LiveStreamsList extends JList<StreamInfo> {
     private JPopupMenu lastContextMenu;
     private LiveStreamsDialog.Sorting currentSorting;
     private boolean favFirst;
+    private DockedDialogHelper dockedHelper;
     
     private final ElapsedTime lastCheckedET = new ElapsedTime();
     private final ElapsedTime lastRepaintedET = new ElapsedTime();
@@ -74,10 +79,10 @@ public class LiveStreamsList extends JList<StreamInfo> {
     private final Timer resortTimer;
     
     public LiveStreamsList(LiveStreamListener liveStreamListener,
-            ChannelFavorites channelFavorites) {
+            ChannelFavorites channelFavorites, Settings settings) {
         data = new SortedListModel<>();
         setModel(data);
-        setCellRenderer(new MyCellRenderer(favs));
+        setCellRenderer(new MyCellRenderer(favs, gameFavs));
         contextMenuListeners = new ArrayList<>();
         this.liveStreamListener = liveStreamListener;
         addListeners();
@@ -107,6 +112,25 @@ public class LiveStreamsList extends JList<StreamInfo> {
         channelFavorites.addChangeListener(favChangeListener);
         // Init once
         favChangeListener.favoritesChanged();
+        
+        settings.addSettingChangeListener((String setting, int type, Object value) -> {
+            if (setting.equals("gameFavorites")) {
+                updateGameFavs(settings);
+            }
+        });
+        updateGameFavs(settings);
+    }
+    
+    public void setDockedDialogHelper(DockedDialogHelper helper) {
+        this.dockedHelper = helper;
+    }
+    
+    private void updateGameFavs(Settings settings) {
+        SwingUtilities.invokeLater(() -> {
+            gameFavs.clear();
+            gameFavs.addAll(settings.getList("gameFavorites"));
+            resort();
+        });
     }
 
     public void addContextMenuListener(ContextMenuListener listener) {
@@ -128,8 +152,8 @@ public class LiveStreamsList extends JList<StreamInfo> {
 
                 @Override
                 public int compare(StreamInfo o1, StreamInfo o2) {
-                    boolean fav1 = favs.contains(o1.stream);
-                    boolean fav2 = favs.contains(o2.stream);
+                    boolean fav1 = favs.contains(o1.stream) || gameFavs.contains(o1.getGame());
+                    boolean fav2 = favs.contains(o2.stream) || gameFavs.contains(o2.getGame());
                     if (fav1 && !fav2) {
                         return -1;
                     }
@@ -304,7 +328,7 @@ public class LiveStreamsList extends JList<StreamInfo> {
 
         JListActionHelper.install(this, (a, l, s) -> {
             if (a == Action.CONTEXT_MENU) {
-                StreamInfosContextMenu m = new StreamInfosContextMenu(s, true, favFirst);
+                StreamInfosContextMenu m = new StreamInfosContextMenu(s, true, favFirst, dockedHelper.isDocked());
                 m.setSorting(currentSorting.key);
                 for (ContextMenuListener cml : contextMenuListeners) {
                     m.addContextMenuListener(cml);
@@ -356,15 +380,19 @@ public class LiveStreamsList extends JList<StreamInfo> {
                 BorderFactory.createMatteBorder(1, 0, 0, 0, Color.BLACK);
         
         private final ImageIcon favIcon = new ImageIcon(getClass().getResource("/chatty/gui/star.png"));
+        private final ImageIcon gameFavIcon = new ImageIcon(getClass().getResource("/chatty/gui/game.png"));
+        private final ImageIcon bothFavIcon = GuiUtil.combineIcons(favIcon, gameFavIcon, 2);
         
         private final JTextArea area;
         private final Set<String> favs;
+        private final Set<String> gameFavs;
         
-        public MyCellRenderer(Set<String> favs) {
+        public MyCellRenderer(Set<String> favs, Set<String> gameFavs) {
             area = new JTextArea();
             area.setLineWrap(true);
             area.setWrapStyleWord(true);
             this.favs = favs;
+            this.gameFavs = gameFavs;
         }
         
         @Override
@@ -391,11 +419,20 @@ public class LiveStreamsList extends JList<StreamInfo> {
             }
             
             // Add Borders
-            String title = String.format("%s%s (%s | %s)",
-                    info.getStreamTypeString(),
-                    info.getCapitalizedName(),
-                    Helper.formatViewerCount(info.getViewers()),
-                    DateTime.agoUptimeCompact(info.getTimeStartedWithPicnic()));
+            String title;
+            if (info.getTimeStartedWithPicnic() != -1) {
+                title = String.format("%s%s (%s | %s)",
+                        info.getStreamTypeString(),
+                        info.getCapitalizedName(),
+                        Helper.formatViewerCount(info.getViewers()),
+                        DateTime.agoUptimeCompact(info.getTimeStartedWithPicnic()));
+            }
+            else {
+                title = String.format("%s%s (%s)",
+                        info.getStreamTypeString(),
+                        info.getCapitalizedName(),
+                        Helper.formatViewerCount(info.getViewers()));
+            }
             Border titleBaseBorder = isSelected ? TITLE_SELECTED : TITLE;
             if (info.getStatusChangeTimeAgo() < STREAMINFO_NEW_TIME) {
                 titleBaseBorder = TITLE_NEW;
@@ -403,7 +440,10 @@ public class LiveStreamsList extends JList<StreamInfo> {
             TitledBorder titleBorder = BorderFactory.createTitledBorder(titleBaseBorder,
                     title, TitledBorder.CENTER, TitledBorder.TOP, null, null);
             
-            if (favs.contains(info.stream)) {
+            boolean fav = favs.contains(info.stream);
+            boolean gameFav = gameFavs.contains(info.getGame());
+            if (fav || gameFav) {
+                ImageIcon icon = getFavIcon(fav, gameFav);
                 try {
                     /**
                      * https://stackoverflow.com/a/38052703/2375667
@@ -423,10 +463,10 @@ public class LiveStreamsList extends JList<StreamInfo> {
                     // Put the field accessibility back to default
                     f.setAccessible(false);
                     // Set the icon and do whatever you want with your label
-                    borderLabel.setIcon(favIcon);
+                    borderLabel.setIcon(icon);
                 } catch (Exception ex) {
                     // Fallback when the reflection doesn't work
-                    titleBorder.setTitle("⭐"+titleBorder.getTitle());
+                    titleBorder.setTitle(getFavText(fav, gameFav)+titleBorder.getTitle());
                 }
             }
             Border innerBorder = BorderFactory.createCompoundBorder(titleBorder, PADDING);
@@ -443,6 +483,33 @@ public class LiveStreamsList extends JList<StreamInfo> {
             }
             return area;
         }
+        
+        private ImageIcon getFavIcon(boolean fav, boolean gameFav) {
+            if (fav && gameFav) {
+                return bothFavIcon;
+            }
+            else if (fav) {
+                return favIcon;
+            }
+            else if (gameFav) {
+                return gameFavIcon;
+            }
+            return null;
+        }
+        
+        private String getFavText(boolean fav, boolean gameFav) {
+            if (fav && gameFav) {
+                return "⭐ 🎮 ";
+            }
+            else if (fav) {
+                return "⭐ ";
+            }
+            else if (gameFav) {
+                return "🎮 ";
+            }
+            return null;
+        }
+        
     }
     
     public interface ListDataChangedListener {

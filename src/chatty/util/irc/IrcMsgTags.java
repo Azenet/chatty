@@ -4,9 +4,11 @@ package chatty.util.irc;
 import chatty.Helper;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -49,6 +51,24 @@ public class IrcMsgTags {
     }
     
     /**
+     * Returns a copy of all keys.
+     * 
+     * @return 
+     */
+    public Set<String> keys() {
+        return new HashSet<>(tags.keySet());
+    }
+    
+    /**
+     * Adds all key/value pairs to the given map.
+     * 
+     * @param map 
+     */
+    public void fill(Map<String, String> map) {
+        map.putAll(tags);
+    }
+    
+    /**
      * Returns true if there are no key/value pairs.
      * 
      * @return true if empty
@@ -81,8 +101,9 @@ public class IrcMsgTags {
         return false;
     }
     
-    public boolean isEmpty(String key) {
-        return !tags.containsKey(key) || tags.get(key).isEmpty();
+    public boolean hasValue(String key) {
+        String value = tags.get(key);
+        return value != null && !value.isEmpty();
     }
     
     /**

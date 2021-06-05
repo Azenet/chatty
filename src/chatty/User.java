@@ -24,7 +24,7 @@ import java.util.Set;
  * @author tduva
  */
 public class User implements Comparable<User> {
-    
+
     private static final NamedColor[] defaultColors = {
         new NamedColor("Red", 255, 0, 0),
         new NamedColor("Blue", 0, 0, 255),
@@ -43,12 +43,12 @@ public class User implements Comparable<User> {
         new NamedColor("SpringGreen", 0, 255, 127)
     };
     
-    private static final int MAXLINES = 100;
+    private int maxLines = 100;
     
     //========
     // Basics
     //========
-    private final long createdAt = System.currentTimeMillis();
+    private long firstSeen = -1;
     private volatile String id;
     private Room room;
     
@@ -90,6 +90,7 @@ public class User implements Comparable<User> {
      * Current badges id/version. Map gets replaced, not modified.
      */
     private Map<String, String> twitchBadges;
+    private short subMonths;
     private volatile UsericonManager iconManager;
     
     //===========
@@ -197,12 +198,20 @@ public class User implements Comparable<User> {
         return twitchBadges != null && twitchBadges.containsKey(id) && twitchBadges.get(id).equals(version);
     }
     
-    public List<Usericon> getBadges(boolean botBadgeEnabled, boolean pointsHl) {
+    public List<Usericon> getBadges(boolean botBadgeEnabled, boolean pointsHl, boolean channelLogo) {
         Map<String, String> badges = getTwitchBadges();
         if (iconManager != null) {
-            return iconManager.getBadges(badges, this, botBadgeEnabled, pointsHl);
+            return iconManager.getBadges(badges, this, botBadgeEnabled, pointsHl, channelLogo);
         }
         return null;
+    }
+    
+    public synchronized void setSubMonths(short months) {
+        this.subMonths = months;
+    }
+    
+    public synchronized short getSubMonths() {
+        return subMonths;
     }
     
     /**
@@ -278,8 +287,14 @@ public class User implements Comparable<User> {
         }
     }
     
-    public long getCreatedAt() {
-        return createdAt;
+    public synchronized long getFirstSeen() {
+        return firstSeen;
+    }
+    
+    public synchronized void setFirstSeen() {
+        if (firstSeen == -1) {
+            firstSeen = System.currentTimeMillis();
+        }
     }
     
     public synchronized int getNumberOfMessages() {
@@ -291,7 +306,11 @@ public class User implements Comparable<User> {
     }
     
     public synchronized int getMaxNumberOfLines() {
-        return MAXLINES;
+        return maxLines;
+    }
+    
+    public synchronized void setMaxNumberOfLines(int num) {
+        this.maxLines = num;
     }
     
     /**
@@ -301,7 +320,7 @@ public class User implements Comparable<User> {
      * @return 
      */
     public synchronized boolean linesCleared() {
-        return lines.size() < MAXLINES && lines.size() < numberOfLines;
+        return lines.size() < maxLines && lines.size() < numberOfLines;
     }
     
     /**
@@ -312,7 +331,7 @@ public class User implements Comparable<User> {
      * @return 
      */
     public synchronized boolean maxLinesExceeded() {
-        return lines.size() == MAXLINES && lines.size() < numberOfLines;
+        return lines.size() == maxLines && lines.size() < numberOfLines;
     }
     
     /**
@@ -323,6 +342,7 @@ public class User implements Comparable<User> {
      * @param id 
      */
     public synchronized void addMessage(String line, boolean action, String id) {
+        setFirstSeen();
         addLine(new TextMessage(System.currentTimeMillis(), line, action, id));
         numberOfMessages++;
     }
@@ -349,15 +369,18 @@ public class User implements Comparable<User> {
     }
     
     public synchronized void addSub(String message, String text) {
+        setFirstSeen();
         addLine(new SubMessage(System.currentTimeMillis(), message, text));
     }
     
     public synchronized void addInfo(String message, String text) {
+        setFirstSeen();
         addLine(new InfoMessage(System.currentTimeMillis(), message, text));
     }
     
     public synchronized void addModAction(ModeratorActionData data) {
-        addLine(new ModAction(System.currentTimeMillis(), data.getCommandAndParameters()));
+        setFirstSeen();
+        addLine(new ModAction(System.currentTimeMillis(), data.moderation_action+" "+ModLogInfo.makeArgsText(data)));
     }
     
     private List<ModeratorActionData> cachedBanInfo;
@@ -378,7 +401,7 @@ public class User implements Comparable<User> {
         }
     }
     
-    private static final int BAN_INFO_WAIT = 500;
+    private static final int BAN_INFO_WAIT = 1000;
     
     private synchronized void replayCachedBanInfo() {
         if (cachedBanInfo == null) {
@@ -446,7 +469,7 @@ public class User implements Comparable<User> {
      */
     private void addLine(Message line) {
         lines.add(line);
-        if (lines.size() > MAXLINES) {
+        if (lines.size() > maxLines) {
             lines.remove(0);
         }
         numberOfLines++;
@@ -460,6 +483,26 @@ public class User implements Comparable<User> {
      */
     public synchronized List<Message> getMessages() {
         return new ArrayList<>(lines);
+    }
+    
+    public synchronized int getNumberOfSimilarChatMessages(String compareMsg, long timeframe, float minSimilarity) {
+        compareMsg = StringUtil.prepareForSimilarityComparison(compareMsg);
+        int result = 0;
+        long checkUntilTime = System.currentTimeMillis() - timeframe * 1000;
+        for (int i=lines.size() - 1; i>=0; i--) {
+            Message m = lines.get(i);
+            if (m instanceof TextMessage) {
+                TextMessage msg = (TextMessage)m;
+                if (msg.getTime() < checkUntilTime) {
+                    break;
+                }
+                String text = StringUtil.prepareForSimilarityComparison(msg.text);
+                if (StringUtil.checkSimilarity(compareMsg, text, minSimilarity)) {
+                    result++;
+                }
+            }
+        }
+        return result;
     }
     
     public synchronized TextMessage getMessage(String msgId) {
@@ -660,6 +703,22 @@ public class User implements Comparable<User> {
     }
     
     /**
+     * Only return custom or corrected color.
+     * 
+     * @return The color, or null if no custom or corrected color is set
+     */
+    public synchronized Color getDisplayColor2() {
+        Color color = getColor();
+        if (hasCustomColor) {
+            return color;
+        }
+        if (hasCorrectedColor) {
+            return correctedColor;
+        }
+        return null;
+    }
+    
+    /**
      * Returns the original Twitch Chat color, either the color received from
      * Twitch Chat, or the default color if none was received yet.
      * 
@@ -814,6 +873,10 @@ public class User implements Comparable<User> {
     
     public synchronized boolean isLocalUser() {
         return localUser;
+    }
+    
+    public synchronized boolean sameUser(User user) {
+        return user != null && user.getChannel().equals(getChannel()) && user.getName().equals(nick);
     }
     
     /**
@@ -1146,6 +1209,9 @@ public class User implements Comparable<User> {
     
     public static class ModAction extends Message {
 
+        /**
+         * For display, may be formatted differently depending on the command.
+         */
         public final String commandAndParameters;
         
         public ModAction(long time, String commandAndParameters) {

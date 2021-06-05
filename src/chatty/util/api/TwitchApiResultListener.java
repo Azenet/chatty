@@ -37,20 +37,11 @@ public interface TwitchApiResultListener {
     void receivedServer(String channel, String server);
     
     /**
-     * Info retrieved from chat properties.
-     * 
-     * @param chatInfo Can be null if an error occured
-     */
-    void receivedChatInfo(ChatInfo chatInfo);
-    
-    /**
      * Human-readable result message.
      * 
      * @param message 
      */
     void followResult(String message);
     
-    void autoModResult(String result, String msgId);
-    
-    void roomsInfo(RoomsInfo info);
+    void autoModResult(TwitchApi.AutoModAction action, String msgId, TwitchApi.AutoModActionResult result);
 }

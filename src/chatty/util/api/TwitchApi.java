@@ -40,7 +40,6 @@ public class TwitchApi {
     
     protected final StreamInfoManager streamInfoManager;
     protected final EmoticonManager2 emoticonManager2;
-    protected final CheerEmoticonManager cheersManager;
     protected final CheerEmoticonManager2 cheersManager2;
     protected final FollowerManager followerManager;
     protected final FollowerManager subscriberManager;
@@ -53,6 +52,7 @@ public class TwitchApi {
     private volatile Long tokenLastChecked = Long.valueOf(0);
     
     protected volatile String defaultToken;
+    protected volatile String localUserId;
 
     protected final Requests requests;
 
@@ -60,7 +60,6 @@ public class TwitchApi {
             StreamInfoListener streamInfoListener) {
         this.resultListener = apiResultListener;
         this.streamInfoManager = new StreamInfoManager(this, streamInfoListener);
-        cheersManager = new CheerEmoticonManager(apiResultListener);
         cheersManager2 = new CheerEmoticonManager2(this, resultListener);
         followerManager = new FollowerManager(Follower.Type.FOLLOWER, this, resultListener);
         subscriberManager = new FollowerManager(Follower.Type.SUBSCRIBER, this, resultListener);
@@ -80,7 +79,7 @@ public class TwitchApi {
                     req.request.run();
                 }
             }
-        }, CachedBulkManager.NONE);
+        }, "[Api] ", CachedBulkManager.NONE);
     }
     
     private static class Req {
@@ -172,20 +171,6 @@ public class TwitchApi {
         cheersManager2.request(room, forceRefresh);
     }
     
-    public void requestRoomsNow(String channel) {
-        if (!Helper.isRegularChannel(channel)) {
-            return;
-        }
-        String room = Helper.toStream(channel);
-        getUserIdAsap(r -> {
-            if (r.hasError()) {
-                resultListener.roomsInfo(new RoomsInfo(room, null));
-            } else {
-                requests.requestRooms(r.getId(room), room);
-            }
-        }, room);
-    }
-    
     //====================
     // Channel Information
     //====================
@@ -206,10 +191,6 @@ public class TwitchApi {
                 }
             }, stream);
         }
-    }
-
-    public void getChatInfo(String stream) {
-        requests.requestChatInfo(stream);
     }
     
     public void getFollowers(String stream) {
@@ -273,6 +254,16 @@ public class TwitchApi {
         return streamInfoManager.getStreamInfo(stream, streams);
     }
     
+    /**
+     * Only return already cached StreamInfo, never create a new one.
+     * 
+     * @param stream
+     * @return The StreamInfo object, or null if none exists
+     */
+    public StreamInfo getCachedStreamInfo(String stream) {
+        return streamInfoManager.getCachedStreamInfo(stream);
+    }
+    
     public void getFollowedStreams(String token) {
         streamInfoManager.getFollowedStreams(token);
     }
@@ -287,6 +278,10 @@ public class TwitchApi {
     
     public void setToken(String token) {
         this.defaultToken = token;
+    }
+    
+    public void setLocalUserId(String userId) {
+        this.localUserId = userId;
     }
     
     /**
@@ -510,12 +505,34 @@ public class TwitchApi {
     // AutoMod
     //---------
     
+    public enum AutoModAction {
+        ALLOW, DENY
+    }
+    
+    public enum AutoModActionResult {
+        SUCCESS(204, ""),
+        ALREADY_PROCESSED(400, "Message already handled"),
+        BAD_AUTH(401, "Access denied (check Main - Account for access)"),
+        UNAUTHORIZED(403, "Access denied"),
+        NOT_FOUND(404, "Invalid message id"),
+        OTHER_ERROR(-1, "Unknown error");
+        
+        public final int responseCode;
+        public final String errorMessage;
+        
+        AutoModActionResult(int responseCode, String errorMessage) {
+            this.responseCode = responseCode;
+            this.errorMessage = errorMessage;
+        }
+        
+    }
+    
     public void autoModApprove(String msgId) {
-        requests.autoMod("approve", msgId, defaultToken);
+        requests.autoMod(AutoModAction.ALLOW, msgId, defaultToken, localUserId);
     }
     
     public void autoModDeny(String msgId) {
-        requests.autoMod("deny", msgId, defaultToken);
+        requests.autoMod(AutoModAction.DENY, msgId, defaultToken, localUserId);
     }
 
     //---------------

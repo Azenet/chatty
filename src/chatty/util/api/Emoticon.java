@@ -20,6 +20,7 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -343,6 +344,16 @@ public class Emoticon {
         this.subType = builder.subtype;
     }
     
+    /**
+     * Some emote codes contain regex characters, while not being intended to be
+     * interpreted as regex (and others still consist of an actual regex).
+     * 
+     * This serves as a backup in case some aren't turned back into regex.
+     */
+    private static final Set<String> LITERAL = new HashSet<>(Arrays.asList(new String[]{
+        "8-)", ":|", ";)", ">(", ":\\", ":)", ":-)", "R)", ":(", ":-(", "B)", "B-)"
+    }));
+    
     private void createMatcher() {
         if (matcher == null) {
             String search = code;
@@ -360,8 +371,13 @@ public class Emoticon {
                  */
                 search = Pattern.quote(search)+"[\uFE0E\uFE0F]?";
             } else {
+                if (search.length() < 4) {
+                    // Turn some of the "smiley" emotes back into regex (they
+                    // still seem to be parsed with the regex serverside)
+                    search = Emoticons.toRegex(search);
+                }
                 // Any regular emotes should be separated by spaces
-                if (literal) {
+                if (literal || LITERAL.contains(search)) {
                     // Literal emotes come from a source that doesn't provide
                     // regex, but may contain regex special characters
                     search = Pattern.quote(search);
@@ -534,7 +550,9 @@ public class Emoticon {
         } else {
             images.markStrong(resultImage);
         }
-        resultImage.addUser(user);
+        if (user != null) {
+            resultImage.addUser(user);
+        }
         return resultImage;
     }
     
@@ -854,7 +872,7 @@ public class Emoticon {
                 if (loadedIcon == null) {
                     image.setLoadingError();
                 } else {
-                    image.setImageIcon(loadedIcon);
+                    image.setImageIcon(loadedIcon, true);
                 }
                 image.setLoadingDone();
             } catch (InterruptedException | ExecutionException ex) {
@@ -965,6 +983,7 @@ public class Emoticon {
         
         private boolean loading = false;
         private boolean loadingError = false;
+        private boolean isLoaded = false;
         private volatile int loadingAttempts = 0;
         private long lastLoadingAttempt;
         private long lastUsed;
@@ -1046,16 +1065,22 @@ public class Emoticon {
         }
         
         private void setLoadingError() {
-            setImageIcon(new ImageIcon(getDefaultImage(true)));
+            setImageIcon(new ImageIcon(getDefaultImage(true)), false);
             loadingError = true;
         }
         
-        private void setImageIcon(ImageIcon newIcon) {
+        public void setImageIcon(ImageIcon newIcon, boolean success) {
+            if (icon == null) {
+                setDefaultIcon();
+            }
             boolean sizeChanged = icon.getIconWidth() != newIcon.getIconWidth()
                     || icon.getIconHeight() != newIcon.getIconHeight();
             Image oldImage = icon.getImage();
             icon.setImage(newIcon.getImage());
             icon.setDescription(newIcon.getDescription());
+            if (success) {
+                setLoaded();
+            }
             informUsers(oldImage, newIcon.getImage(), sizeChanged);
         }
         
@@ -1063,13 +1088,24 @@ public class Emoticon {
             this.loadedFrom = url;
         }
         
-
+        public boolean isAnimated() {
+            return Emoticon.this.isAnimated() ||
+                    (icon != null && icon.getDescription() != null && icon.getDescription().startsWith("GIF"));
+        }
         
         /**
          * Either error or successfully loaded.
          */
         private void setLoadingDone() {
             loading = false;
+        }
+        
+        private void setLoaded() {
+            isLoaded = true;
+        }
+        
+        public boolean isLoaded() {
+            return isLoaded;
         }
         
         private void addUser(EmoticonUser user) {
@@ -1093,6 +1129,10 @@ public class Emoticon {
          */
         private ImageIcon getDefaultIcon() {
             return new ImageIcon(getDefaultImage(false));
+        }
+        
+        public void setDefaultIcon() {
+            icon = getDefaultIcon();
         }
         
         /**

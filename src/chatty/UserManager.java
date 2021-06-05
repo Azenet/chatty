@@ -242,6 +242,7 @@ public class UserManager {
                 user.setAdmin(specialUser.isAdmin());
                 user.setStaff(specialUser.isStaff());
                 user.setTurbo(specialUser.hasTurbo());
+                user.setId(specialUser.getId());
                 user.setLocalUser(true);
                 if (!specialUser.hasDefaultColor()) {
                     user.setColor(specialUser.getPlainColor());
@@ -252,6 +253,12 @@ public class UserManager {
             }
             // Put User into the map for the channel
             getUsersByChannel(room.getChannel()).put(name, user);
+            
+            // Set history length
+            int userDialogMessageLimit = settings.getInt("userDialogMessageLimit");
+            if (userDialogMessageLimit >= 0) {
+                user.setMaxNumberOfLines(userDialogMessageLimit);
+            }
         }
         return user;
     }

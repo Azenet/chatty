@@ -1,6 +1,7 @@
 
 package chatty.util.irc;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -20,6 +21,10 @@ public class MsgTags extends IrcMsgTags {
         return get("id");
     }
     
+    public boolean hasId() {
+        return hasValue("id");
+    }
+    
     public int getBits() {
         return getInteger("bits", 0);
     }
@@ -33,11 +38,40 @@ public class MsgTags extends IrcMsgTags {
     }
     
     public boolean isCustomReward() {
-        return containsKey("custom-reward-id");
+        return hasValue("custom-reward-id");
     }
     
     public String getCustomRewardId() {
         return get("custom-reward-id");
+    }
+    
+    public boolean isFromPubSub() {
+        return isValue("chatty-source", "pubsub");
+    }
+    
+    public String getHosted() {
+        return get("chatty-hosted");
+    }
+    
+    public boolean hasReplyUserMsg() {
+        return hasValue("reply-parent-msg-body") && hasValue("reply-parent-display-name");
+    }
+    
+    public String getReplyUserMsg() {
+        if (hasReplyUserMsg()) {
+            return String.format("<%s> %s",
+                    get("reply-parent-display-name"),
+                    get("reply-parent-msg-body"));
+        }
+        return null;
+    }
+    
+    public boolean isReply() {
+        return hasValue("reply-parent-msg-id");
+    }
+    
+    public String getReplyParentMsgId() {
+        return get("reply-parent-msg-id");
     }
     
     //================
@@ -66,6 +100,37 @@ public class MsgTags extends IrcMsgTags {
      */
     public static MsgTags create(String... args) {
         return new MsgTags(createTags(args));
+    }
+    
+    /**
+     * Merges the key/value pairs of the two MsgTags objects. If a key appears
+     * in both of them, the value in the first object will be used.
+     * 
+     * @param a
+     * @param b
+     * @return 
+     */
+    public static MsgTags merge(MsgTags a, MsgTags b) {
+        Map<String, String> result = new HashMap<>();
+        b.fill(result);
+        a.fill(result);
+        return new MsgTags(result);
+    }
+    
+    /**
+     * Creates a new MsgTags object with the given key/value pair added. If a key with the given
+     * name already exists, it's value is overwritten.
+     * 
+     * @param a The original MsgTags object
+     * @param key The key to be added
+     * @param value The value to be added
+     * @return A new MsgTags object
+     */
+    public static MsgTags addTag(MsgTags a, String key, String value) {
+        Map<String, String> result = new HashMap<>();
+        a.fill(result);
+        result.put(key, value);
+        return new MsgTags(result);
     }
     
 }

@@ -1,11 +1,19 @@
 
 package chatty;
 
+import chatty.gui.MainGui;
+import chatty.gui.components.settings.MainSettings;
+import chatty.gui.components.textpane.UserNotice;
 import chatty.lang.Language;
 import chatty.util.DateTime;
 import chatty.util.Replacer;
 import chatty.util.StringUtil;
+import chatty.util.api.usericons.Usericon;
 import chatty.util.commands.Parameters;
+import chatty.util.dnd.DockLayout;
+import chatty.util.irc.MsgTags;
+import chatty.util.settings.FileManager.SaveResult;
+import chatty.util.settings.Settings;
 import java.awt.Dimension;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
@@ -34,6 +42,12 @@ public class Helper {
     }
     
     /**
+     * This is a bit ugly since the other functions here don't rely on external
+     * data like this, but it works.
+     */
+    public static Addressbook addressbook;
+    
+    /**
      * Parses comma-separated channels from a String.
      * 
      * @param channels The list channels to parse
@@ -46,13 +60,39 @@ public class Helper {
         for (String part : parts) {
             String channel = part.trim();
             if (isValidChannel(channel)) {
-                if (prepend && !channel.startsWith("#")) {
-                    channel = "#"+channel;
+                addValidChannel(channel, prepend, result);
+            }
+            else if (channel.startsWith("[") && channel.endsWith("]") && channel.length() > 2 && addressbook != null) {
+                String[] catSplit = channel.substring(1, channel.length() - 1).split(" ");
+                String cat = catSplit[0];
+                boolean noChans = false;
+                boolean onlyChans = false;
+                if (catSplit.length > 1) {
+                    if (catSplit[1].equals("#")) {
+                        onlyChans = true;
+                    }
+                    else if (catSplit[1].equals("!#")) {
+                        noChans = true;
+                    }
                 }
-                result.add(StringUtil.toLowerCase(channel));
+                for (String name : addressbook.getNamesByCategory(cat)) {
+                    if ((!noChans || !name.startsWith("#"))
+                            && (!onlyChans || name.startsWith("#"))) {
+                        addValidChannel(name, prepend, result);
+                    }
+                }
             }
         }
         return result;
+    }
+    
+    private static void addValidChannel(String channel, boolean prepend, Collection<String> collection) {
+        if (isValidChannel(channel)) {
+            if (prepend && !channel.startsWith("#")) {
+                channel = "#" + channel;
+            }
+            collection.add(StringUtil.toLowerCase(channel));
+        }
     }
     
     public static String[] parseChannels(String channels, boolean prepend) {
@@ -749,6 +789,15 @@ public class Helper {
         return Collections.unmodifiableMap(result);
     }
     
+    public static short parseShort(String input, short defaultValue) {
+        try {
+            return Short.parseShort(input);
+        }
+        catch (NumberFormatException ex) {
+            return defaultValue;
+        }
+    }
+    
     public static String makeDisplayNick(User user, long displayNamesMode) {
         if (user.hasCustomNickSet()) {
             return user.getFullNick();
@@ -810,7 +859,6 @@ public class Helper {
     }
     
     public static void addUserParameters(User user, String msgId, String autoModMsgId, Parameters parameters) {
-        parameters.put("nick", user.getRegularDisplayNick());
         if (msgId != null) {
             parameters.put("msg-id", msgId);
             parameters.put("msg", user.getMessageText(msgId));
@@ -822,13 +870,137 @@ public class Helper {
                 parameters.put("msg", autoModMsg);
             }
         }
-        parameters.put("user-id", user.getId());
-        if (user.getTwitchBadges() != null) {
-            parameters.put("twitch-badge-info", user.getTwitchBadges().toString());
+        parameters.putObject("user", user);
+    }
+    
+    private static final Map<UserNotice, javax.swing.Timer> pointsMerge = new HashMap<>();
+    
+    /**
+     * Must be run in EDT.
+     * 
+     * @param newNotice
+     * @param g 
+     */
+    public static void pointsMerge(UserNotice newNotice, MainGui g) {
+        UserNotice result = findPointsMerge(newNotice);
+        if (result == null) {
+            javax.swing.Timer timer = new javax.swing.Timer(1000, e -> {
+                pointsMerge.remove(newNotice);
+                g.printUsernotice(newNotice.type, newNotice.user, newNotice.infoText, newNotice.attachedMessage, newNotice.tags);
+            });
+            timer.setRepeats(false);
+            pointsMerge.put(newNotice, timer);
+            timer.start();
         }
-        parameters.put("display-nick", user.getDisplayNick());
-        parameters.put("custom-nick", user.getCustomNick());
-        parameters.put("full-nick", user.getFullNick());
+        else {
+            g.printUsernotice(result.type, result.user, result.infoText, result.attachedMessage, result.tags);
+        }
+    }
+    
+    private static UserNotice findPointsMerge(UserNotice newNotice) {
+        UserNotice found = null;
+        for (Map.Entry<UserNotice, javax.swing.Timer> entry : pointsMerge.entrySet()) {
+            UserNotice stored = entry.getKey();
+            // Attached messages seem to be trimmed depending on source
+            boolean sameAttachedMsg = Objects.equals(
+                    StringUtil.trimAll(stored.attachedMessage),
+                    StringUtil.trimAll(newNotice.attachedMessage));
+            if (stored.user.sameUser(newNotice.user) && sameAttachedMsg) {
+                found = stored;
+                entry.getValue().stop();
+            }
+        }
+        if (found != null) {
+            pointsMerge.remove(found);
+            UserNotice ps = found.tags.isFromPubSub() ? found : newNotice;
+            UserNotice irc = found.tags.isFromPubSub() ? newNotice : found;
+            // Use irc msg, since that would also have the emote tags
+            return new UserNotice(ps.type, ps.user, ps.infoText, irc.attachedMessage, MsgTags.merge(found.tags, newNotice.tags));
+        }
+        return null;
+    }
+    
+    public static void setDefaultTimezone(String input) {
+        if (!StringUtil.isNullOrEmpty(input)) {
+            MainSettings.DEFAULT_TIMEZONE = TimeZone.getDefault();
+            TimeZone tz = TimeZone.getTimeZone(input);
+            TimeZone.setDefault(tz);
+            DateTime.setTimeZone(tz);
+            LOGGER.info(String.format("[Timezone] Set to %s [%s]", tz.getDisplayName(), input));
+        }
+    }
+    
+    public static String getErrorMessageWithCause(Throwable ex) {
+        Throwable cause = ex.getCause();
+        if (cause != null) {
+            return String.format("%s [%s]",
+                    getErrorMessageCompact(ex),
+                    getErrorMessageCompact(cause));
+        }
+        return getErrorMessageCompact(ex);
+    }
+    
+    public static String getErrorMessageCompact(Throwable ex) {
+        if (ex.getLocalizedMessage() != null) {
+            return ex.getClass().getSimpleName()+": "+ex.getLocalizedMessage();
+        }
+        return ex.getClass().getSimpleName();
+    }
+    
+    public static String makeSaveResultInfo(List<SaveResult> result) {
+        StringBuilder b = new StringBuilder();
+        int index = 0;
+        for (SaveResult r : result) {
+            if (r == null) {
+                continue;
+            }
+            // Regular
+            if (r.written) {
+                b.append(String.format("* File written to %s\n",
+                        r.filePath));
+            }
+            else if (r.writeError != null) {
+                b.append(String.format("* Writing failed: %s\n",
+                        getErrorMessageCompact(r.writeError)));
+            }
+            
+            // Backup
+            if (r.backupWritten) {
+                b.append(String.format("* Backup written to %s\n",
+                        r.backupPath));
+            }
+            else if (r.writeError != null) {
+                b.append(String.format("* Backup failed: %s\n",
+                        getErrorMessageCompact(r.backupError)));
+            }
+            else if (r.cancelReason == SaveResult.CancelReason.INVALID_CONTENT) {
+                b.append("* Backup failed: Invalid content\n");
+            }
+            
+            // Removed deprecated
+            if (r.removed) {
+                b.append("* Removed unused file\n");
+            }
+            
+            // If anything was appended for this file, add header
+            if (b.length() > index) {
+                b.insert(index, String.format("[%s]\n", r.id));
+                index = b.length();
+            }
+        }
+        return b.toString();
+    }
+    
+    public static Map<String, DockLayout> getLayoutsFromSettings(Settings settings) {
+        Map<String, DockLayout> layouts = new HashMap<>();
+        Map<String, List> values = settings.getMap("layouts");
+        for (Map.Entry<String, List> entry : values.entrySet()) {
+            DockLayout layout = DockLayout.fromList(entry.getValue());
+            if (layout != null) {
+                layouts.put(entry.getKey(), layout);
+            }
+        }
+        return layouts;
     }
     
 }

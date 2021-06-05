@@ -31,7 +31,7 @@ import java.util.logging.Logger;
 public class TwitchConnection {
     
     public enum JoinError {
-        NOT_REGISTERED, ALREADY_JOINED, INVALID_NAME
+        NOT_REGISTERED, ALREADY_JOINED, INVALID_NAME, ROOM
     }
     
     private static final Logger LOGGER = Logger.getLogger(TwitchConnection.class.getName());
@@ -275,6 +275,13 @@ public class TwitchConnection {
         users.setAllOffline();
     }
     
+    public void rejoinChannel(String channel) {
+        if (onChannel(channel)) {
+            irc.rejoinChannel.add(channel);
+            partChannel(channel);
+        }
+    }
+    
     public void partChannel(String channel) {
         if (onChannel(channel)) {
             irc.partChannel(channel);
@@ -507,7 +514,8 @@ public class TwitchConnection {
     
     
 
-    public void join(String channel) {
+    private void join(String channel) {
+        listener.onJoinScheduled(channel);
         irc.joinChannel(channel);
     }
     
@@ -533,16 +541,22 @@ public class TwitchConnection {
     public void joinChannels(Set<String> channels) {
         Set<String> valid = new LinkedHashSet<>();
         Set<String> invalid = new LinkedHashSet<>();
+        Set<String> rooms = new LinkedHashSet<>();
         for (String channel : channels) {
             String checkedChannel = Helper.toValidChannel(channel);
             if (checkedChannel == null) {
                 invalid.add(channel);
+            } else if (checkedChannel.startsWith("#chatrooms:")) {
+                rooms.add(channel);
             } else {
                 valid.add(checkedChannel);
             }
         }
         for (String channel : invalid) {
             listener.onJoinError(channels, channel, JoinError.INVALID_NAME);
+        }
+        for (String channel : rooms) {
+            listener.onJoinError(channels, channel, JoinError.ROOM);
         }
         joinValidChannels(valid);
     }
@@ -587,8 +601,9 @@ public class TwitchConnection {
          * Channels that this connection has joined. This is per connection, so
          * the main and secondary connection have different data here.
          */
-        private final Set<String> joinedChannels = Collections.synchronizedSet(
-                new HashSet<String>());
+        private final Set<String> joinedChannels = Collections.synchronizedSet(new HashSet<>());
+        
+        private final Set<String> rejoinChannel = Collections.synchronizedSet(new HashSet<>());
         
         /**
          * The prefix used for debug messages, so it can be determined which
@@ -701,7 +716,7 @@ public class TwitchConnection {
             
             if (autojoin != null) {
                 for (String channel : autojoin) {
-                    joinChannel(channel);
+                    join(channel);
                 }
                 /**
                  * Only use autojoin once, to prevent it from being used on
@@ -815,6 +830,7 @@ public class TwitchConnection {
                 return;
             }
             if (nick.equalsIgnoreCase(username)) {
+                boolean rejoin = false;
                 /**
                  * Local User Leaving Channel
                  */
@@ -824,12 +840,19 @@ public class TwitchConnection {
                 }
                 joinedChannels.remove(channel);
                 if (this == irc) {
-                    twitchCommands.clearModsAlreadyRequested(channel);
-                    // Remove users for this channel, clearing the userlist in the
-                    // GUI shouldn't be necessary if this channel is closed since
-                    // the GUI userlist is removed as well.
-                    users.clear(channel);
-                    listener.onChannelLeft(rooms.getRoom(channel));
+                    if (rejoinChannel.contains(channel)) {
+                        rejoinChannel.remove(channel);
+                        listener.onChannelLeft(rooms.getRoom(channel), false);
+                        rejoin = true;
+                    }
+                    else {
+                        twitchCommands.clearModsAlreadyRequested(channel);
+                        // Remove users for this channel, clearing the userlist in the
+                        // GUI shouldn't be necessary if this channel is closed since
+                        // the GUI userlist is removed as well.
+                        users.clear(channel);
+                        listener.onChannelLeft(rooms.getRoom(channel), true);
+                    }
                     channelStates.reset(channel);
                 }
                 // Leaving the channel on the userlist connection means
@@ -837,6 +860,9 @@ public class TwitchConnection {
                 // this channel.
                 userlistReceived.remove(channel);
                 debug("PARTED: "+channel);
+                if (rejoin) {
+                    joinChannel(channel);
+                }
             } else {
                 if (isChannelOpen(channel)) {
                     User user = userOffline(channel, nick);
@@ -891,6 +917,15 @@ public class TwitchConnection {
             Map<String, String> badges = Helper.parseBadges(tags.get("badges"));
             if (user.setTwitchBadges(badges)) {
                 changed = true;
+            }
+            
+            Map<String, String> badgeInfo = Helper.parseBadges(tags.get("badge-info"));
+            String subMonths = badgeInfo.get("subscriber");
+            if (subMonths == null) {
+                subMonths = badgeInfo.get("founder");
+            }
+            if (subMonths != null) {
+                user.setSubMonths(Helper.parseShort(subMonths, (short)0));
             }
             
             if (settings.getBoolean("ircv3CapitalizedNames")) {
@@ -992,7 +1027,8 @@ public class TwitchConnection {
             if (this != irc) {
                 return;
             }
-            if (tags.isValue("msg-id", "whisper_invalid_login")) {
+            String msg_id = tags.get("msg-id");
+            if (msg_id != null && msg_id.startsWith("whisper_")) {
                 listener.onInfo(text);
             } else if (onChannel(channel)) {
                 infoMessage(channel, text, tags);
@@ -1110,14 +1146,29 @@ public class TwitchConnection {
             if (months == -1) {
                 months = tags.getInteger("msg-param-months", -1);
             }
+            int giftMonths = tags.getInteger("msg-param-gift-months", -1);
+            
             if (StringUtil.isNullOrEmpty(login, text)) {
                 return;
             }
             User user = userJoined(channel, login);
             updateUserFromTags(user, tags);
             if (tags.isValueOf("msg-id", "resub", "sub", "subgift", "anonsubgift")) {
+                text = text.trim();
+                if (giftMonths > 1 && !text.matches(".* gifted "+giftMonths+" .*")) {
+                    text += " It's a "+giftMonths+"-month gift!";
+                }
+                // There are still some types of notifications that don't have
+                // this info, and it might be useful
                 if (months > 1 && !text.matches(".*\\b"+months+"\\b.*")) {
-                    text += " They've subscribed for "+months+" months!";
+                    String recipient = tags.get("msg-param-recipient-display-name");
+                    if (StringUtil.isNullOrEmpty(recipient)) {
+                        recipient = "They've";
+                    }
+                    else {
+                        recipient += " has";
+                    }
+                    text += " "+recipient+" subscribed for "+months+" months!";
                 }
                 listener.onSubscriberNotification(user, text, message, months, tags);
             } else if (tags.isValue("msg-id", "charity") && login.equals("twitch")) {
@@ -1160,8 +1211,15 @@ public class TwitchConnection {
          * 
          * @param channel
          * @param text 
+         * @param tags The associated tags, may be empty (never null)
          */
         private void infoMessage(String channel, String text, MsgTags tags) {
+            if (tags.isValue("msg-id", "host_on")) {
+                String hostedChannel = channelStates.getState(channel).getHosting();
+                if (!StringUtil.isNullOrEmpty(hostedChannel)) {
+                    tags = MsgTags.addTag(tags, "chatty-hosted", hostedChannel);
+                }
+            }
             if (text.startsWith("The moderators of")) {
                 parseModeratorsList(text, channel);
             } else {
@@ -1350,7 +1408,8 @@ public class TwitchConnection {
                 String[] parameters = trailing.split(" ");
                 if (parameters.length == 2) {
                     String target = parameters[0];
-                    if (target.equals("-")) {
+                    // Unhosting should be "-", but just to be safe
+                    if (!Helper.isRegularChannel(target)) {
                         listener.onHost(rooms.getRoom(channel), null);
                         channelStates.setHosting(channel, null);
                     } else {
@@ -1383,7 +1442,7 @@ public class TwitchConnection {
                     if (tags.containsKey("followers-only")) {
                         channelStates.setFollowersOnly(channel, tags.get("followers-only"));
                     }
-                    if (!tags.isEmpty("room-id")) {
+                    if (tags.hasValue("room-id")) {
                         listener.onRoomId(channel, tags.get("room-id"));
                         if (Helper.isRegularChannel(channel)) {
                             // Set id for room (this should not run too often to
@@ -1447,6 +1506,7 @@ public class TwitchConnection {
 
     public User userJoined(User user) {
         if (user.setOnline(true)) {
+            user.setFirstSeen();
             if (user.getName().equals(user.getStream())) {
                 user.setBroadcaster(true);
             }
@@ -1469,11 +1529,13 @@ public class TwitchConnection {
 
     public interface ConnectionListener {
 
+        void onJoinScheduled(String channel);
+        
         void onJoinAttempt(Room room);
 
         void onChannelJoined(User user);
 
-        void onChannelLeft(Room room);
+        void onChannelLeft(Room room, boolean closeChannel);
 
         void onJoin(User user);
 

@@ -184,7 +184,7 @@ public class NotificationSettings extends SettingsPanel {
         JPanel soundSettings = new JPanel(new GridBagLayout());
         
         gbc = d.makeGbc(0, 0, 3, 1, GridBagConstraints.WEST);
-        JCheckBox soundsEnabled = d.addSimpleBooleanSetting("sounds", "Enable sounds (uncheck to mute)",
+        JCheckBox soundsEnabled = d.addSimpleBooleanSetting("sounds", "Enable sounds",
                 "Use this to enable/disable all sounds.");
         soundSettings.add(soundsEnabled, gbc);
         
@@ -246,7 +246,9 @@ public class NotificationSettings extends SettingsPanel {
         //--------------------------
         // Info
         //--------------------------
-        soundSettings.add(new JLabel("Wav files that probably work are 8 to 48kHz and 8 or 16 bit."),
+        soundSettings.add(new JLabel("<html><body width='300px'>Wav files that probably work are uncompressed PCM, 8-48kHz, 8/16bit "
+                + "(e.g. exported in Audacity as WAV Signed 16-bit PCM). If the file plays silent (but the default ones work), try making "
+                + "the sound longer (for example add some silence)."),
                 d.makeGbc(0, 6, 2, 1));
         
         //======
@@ -263,6 +265,7 @@ public class NotificationSettings extends SettingsPanel {
 
         editor.setPreferredSize(new Dimension(10,260));
         tabs.add(l("tab.events"), editor);
+        tabs.setToolTipTextAt(0, l("tab.events.tip"));
         // Needs to start at "Off", since no event will be triggered at first
         tabs.add(l("tab.notificationSettingsOff"), GuiUtil.northWrap(notificationSettings));
         tabs.add(l("tab.soundSettingsOff"), GuiUtil.northWrap(soundSettings));

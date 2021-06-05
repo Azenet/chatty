@@ -5,7 +5,7 @@
         <link rel="stylesheet" type="text/css" href="style.css" />
 </head>
 <body>
-    <h1><a name="top">Chatty (Version: 0.11-b2)</a></h1>
+    <h1><a name="top">Chatty (Version: 0.15-b6)</a></h1>
     <table>
         <tr>
             <td valign="top">
@@ -50,7 +50,7 @@
                     <li><a href="#channelinfo">Channel Info / History</a></li>
                     <li><a href="#notifications">Live Streams / Notifications</a></li>
                     <li><a href="help-admin.html">Admin Dialog</a></li>
-                    <li><a href="help-livestreamer.html">Livestreamer / Streamlink</a>
+                    <li><a href="help-livestreamer.html">Streamlink</a>
                     <li><a href="help-srl.html">SpeedrunsLive (SRL)</a></li>
                     <li><a href="#followers">Followers/Subscribers List</a></li>
                     <li><a href="#streamhighlights">Stream Highlights / Markers</a></li>
@@ -61,8 +61,8 @@
                 <strong>Settings / Files</strong>
                 <ul class="menu">
                     <li><a href="help-settings.html">Settings Help</a></li>
-                    <li><a href="help-setting_commands.html">Setting commands</a></li>
-                    <li><a href="help-guide_folders.html">Settings and other files</a></li>
+                    <li><a href="help-setting_commands.html">Setting Commands</a></li>
+                    <li><a href="help-guide_folders.html">Setting Files (and others)</a></li>
                     <li><a href="#launch">Launch options</a></li>
                     <li><a href="help-addressbook.html">Addressbook</a></li>
                     <li><a href="help-custom_commands.html">Custom Commands</a></li>
@@ -121,6 +121,8 @@
         <li><code>R9k</code> for R9Kbeta Mode</li>
         <li><code>EmoteOnly</code> for Emote-Only Mode</li>
         <li>A language code if Broadcaster Language Mode is enabled</li>
+        <li><code>[FM]</code> indicates a websocket connection (<code>F</code>
+            for FrankerFaceZ, <code>M</code> for PubSub/Modlogs)</li>
     </ul>
     <p>You can toggle showing some information under <code>View - Options - Titlebar</code>.</p>
     
@@ -174,7 +176,10 @@
     
     <h3><a name="commands-chat">Chat commands:</a></h3>
     <ul>
-	<li><code>/me &lt;message&gt;</code> - Send an action message (* nickname says something) to the channel</li>
+        <li><code>/say &lt;message&gt;</code> - Send a regular chat message, alternative to just entering the text (it being a command can be useful in some cases, e.g. if you want to ensure that a message starting with a replacement can't trigger another command or to use an <a href="help-custom_commands.html#anonymous-custom-commands">Anonymous Custom Command</a> using <code>//say</code>)</li>
+	<li><code>/me &lt;message&gt;</code> - Send an action message (* nickname says something)</li>
+        <li><code>/msgreply &lt;message&gt;</code> - Send a reply to a specific message, only works when added to the User Context Menu or User Dialog
+            in the Commands settings (e.g. <code>Reply=/msgreply $$input(Reply to $(nick))</code>)</li>
 	<li><code>/to &lt;nick&gt; [time] [reason]</code> - Timeout the user with the given nickname for "time" seconds (time is optional)</li>
         <li><code>/timeout</code>, <code>/ban</code>, <code>/unban</code>,
                 <code>/slow</code>, <code>/slowoff</code>,
@@ -235,6 +240,9 @@
         <li><code>/openUrl &lt;url&gt;</code> - Opens the given url (see <a href="help-setting_commands.html#openurl">Open URL Command settings</a>)</li>
         <li><code>/openUrlPrompt &lt;url&gt;</code> - Opens the given url after
         showing a prompt for confirmation</li>
+        <li><code>/openFile &lt;path&gt;</code> - Opens the given path in the default application</li>
+        <li><code>/openFilePrompt &lt;path&gt;</code> - Opens the given path in the default application (with prompt asking for confirmation)</li>
+        <li><code>/setSize &lt;width&gt; &lt;height&gt;</code> - Sets the main window size</li>
     </ul>
     
     <h3><a name="commands-system">Housekeeping/System commands:</a></h3>
@@ -245,10 +253,11 @@
         <li><code>/wdir</code> / <code>/openWdir</code> - Show/open the current working directory</li>
         <li><code>/showBackupDir</code> / <code>/openBackupDir</code> - Show/open the <a href="help-guide_folders.html#backup">backup directory</a></li>
         <li><code>/showDebugDir</code> / <code>/openDebugDir</code> - Show/open the debug log directory</li>
+        <li><code>/showLogDir</code> / <code>/openLogDir</code> - Show/open the chat log directory</li>
         <li><code>/showJavaDir</code> / <code>/openJavaDir</code> - Show/open the directory of the JRE used by Chatty</li>
         <li><code>/showFallbackFontDir</code> / <code>/openFallbackFontDir</code> - Show/open the directory where Java looks for <a href="help-troubleshooting.html#font">fallback fonts</a></li>
         <li><code>/showTempDir</code> / <code>/openTempDir</code> - Show/open the system's temp directory</li>
-        <li><code>/refresh &lt;emoticons/badges/ffz/ffzglobal/bttvemotes/emotesets&gt;</code>
+        <li><code>/refresh &lt;emoticons/badges/ffz/ffzglobal/bttvemotes&gt;</code>
             - Refresh the given data from it's respective API:
             <ul>
                 <li><code>emoticons</code>: Twitch Emotes</li>
@@ -256,9 +265,6 @@
                 <li><code>ffz</code>: FFZ Emotes (current channel)</li>
                 <li><code>ffzglobal</code>: Global FFZ Emotes</li>
                 <li><code>bttvemotes</code>: BTTV Emotes (global and current channel)</li>
-                <li><code>emotesets</code>: Association between emoteset and
-                    channel name, to display Twitch Subemotes info correctly
-                    (twitchemotes.com API)</li>
             </ul>
             <em>This downloads the lists from the Internet, which may be useful
                 if new emotes have been added (it's basicially like pressing
@@ -289,6 +295,7 @@
         <li><code>/raw &lt;command&gt;</code> - Send a raw command to the server</li>
         <li><code>/changetoken &lt;token&gt;</code> - Checks if the given token
             is valid and sets it as new token if it is</li>
+        <li><code>/proc</code> - <a href="#custom-processes">Execute a system process</a></li>
     </ul>
     
     <h3><a name="commands-chain">Execute several commands</a></h3>
@@ -303,6 +310,40 @@
         
         <dt><code>/chain /echo a | /echo ||b||</code></dt>
         <dd>Outputs <code>a</code> and <code>|b|</code></dd>
+    </dl>
+    
+    <p>When using <code>/chain</code> with <a href="help-custom_commands.html">Custom Command</a>
+        replacements, consider the following:</p>
+    
+    <dl class="defList">
+        <dt><code>/chain /echo $(msg) | /echo abc</code></dt>
+        <dd>All replacements are performed before the <code>/chain</code>
+            command is executed, so anything in <code>$(msg)</code> is put in
+            first. If <code>$(msg)</code> contained <code>Hello World!</code>:<br />
+            <code>/chain /echo Hello World! | /echo abc</code></dd>
+        <dd>This means that if a replacement contains a <code>|</code> character
+            it would add an additional command. If <code>$(msg)</code> contained <code>Hello | World!</code>, then <code>World!</code> would be
+            separately entered into the inputbox (so it would output two <code>/echo</code>
+            info messages and send <code>World!</code> to chat):<br />
+            <code>/chain /echo Hello | World! | /echo abc</code></dd>
+        <dd>Since this could cause issues, any top-level replacement will escape
+            the <code>|</code> character automatically if the Custom Command
+            begins with the <code>/chain</code> command (so it would output
+            <code>Hello | World!</code> and <code>abc</code>):<br />
+            <code>/chain /echo Hello || World! | /echo abc</code></dd>
+        <dd>You can prevent this automatic escaping (if you are absolutely sure that
+            you want replacements to be able to insert any command) by adding
+            a backslash in front (this doesn't work when you enter the <code>/chain</code>
+            command directly into the inputbox):<br />
+            <code>\/chain /echo Hello | World! | /echo abc</code></dd>
+        
+        <dt><code>/chain /echo abc $(chain-test)</code></dt>
+        <dd>You can test this by using the <code>$(chain-test)</code> replacement.
+            This should (if e.g. added in the body of a Custom Command) output the following info message:<br />
+            <code>abc | /echo Test || Message</code></dd>
+        <dd>If you add a backslash in front, it will output two info messages:<br />
+            <code>abc</code><br />
+            <code>Test | Message</code></dd>
     </dl>
     
     <h2>
@@ -344,8 +385,18 @@
             <code>/follow</code> and <code>/unfollow</code> commands.</dd>
         
         <dt><code>Your Subscriptions</code></dt>
-        <dd>Enables more accurate display or your emotes (for "Extra - Emotes
+        <dd>Enables more accurate display of your emotes (for "Extra - Emotes
             Dialog", TAB Completion and when sending a message).</dd>
+        
+        <dt><code>Moderate Channel</code></dt>
+        <dd>Required to receive moderator actions in channels you are a moderator,
+            which show under "Extra - Moderation Log", show which mod performed
+            an action in chat and shows messages caught by AutoMod (depending
+            on settings under "Main - Settings - Moderation").</dd>
+        
+        <dt><code>Points Redemptions</code></dt>
+        <dd>Enables more accurate display of Channel Points Redemptions in your
+            channel.</dd>
     </dl>
     
     <p>Once requested from Twitch, the login data is stored locally on your
@@ -363,7 +414,7 @@
     <h3><a name="access">Allow more access</a></h3>
     <p>To allow Chatty more access than it already has (e.g. if you haven't
         selected editor access before, but you want it now), you need to request
-        a new access token. Just go to <code>&lt;Main - Login..&gt;</code>,
+        a new access token. Just go to <code>&lt;Main - Account&gt;</code>,
         delete the login and request it again with the necessary access.</p>
     
     <h3>Allow less access</h3>
@@ -400,7 +451,7 @@
                 <li>How to proceed:
                 <ul>
                     <li>In this case, requesting new login data from Twitch probably
-                        won't help at all. Go to <code>&lt;Main - Login..&gt;</code>
+                        won't help at all. Go to <code>&lt;Main - Account&gt;</code>
                         to open the <code>Login configuration</code> and click on <code>[Verify login]</code> a few times
                         (with a few minutes in between attempts).</li>
                     <li>If you are already connected to chat, you can just stay
@@ -427,7 +478,7 @@
                 <li>The token was invalidated for some other reason.</li>
                 <li>How to proceed:
                     <ul>
-                        <li>Go to <code>&lt;Main - Login..&gt;</code> to open
+                        <li>Go to <code>&lt;Main - Account&gt;</code> to open
                             the <code>Login configuration</code> (you may
                             already have it open), click <code>[Remove login]</code>
                             and create a new login.</li>
@@ -976,31 +1027,50 @@ MiniK   http://static-cdn.jtvnw.net/emoticons/v1/25/1.0     set:793 id:3287</pre
         <a href="#top" class="top">[back to menu]</a>
     </h2>
         <p>Stream Chat is a separate dialog, opened via the <code>/openStreamChat</code>
-            command or the <code>Extra</code> menu, that can have chat messages from one or several
-    channels redirected to it (only regular chat messages, so no JOINS/PARTS, info messages
-    and so on). It also can have a message timeout set, so messages will
-    disappear after a certain amount of seconds.</p>
+            command or the <code>Extra</code> menu, which is different from normal chats:</p>
         
-        <p>The idea is to capture Stream Chat to display chat on stream and
-        messages will only be displayed if the chat has been recently active. So
-        this doesn't really make a lot of sense for busier channels, unless you
-        simply prefer to only have regular messages or to have a separate dialog
-        for the capture.</p>
+        <ul>
+            <li>Can contain messages from one or several channels at once (only regular chat messages, no info messages)</li>
+            <li>Messages can be automatically removed after a certain time</li>
+        </ul>
         
         <h3>Getting started</h3>
-        <p>You need to add the channel which messages are redirected to the
-        Stream Chat dialog before anything will appear. The setting you are required
-        to change is <code>streamChatChannels</code>,
-        which is a list setting giving you different ways of editing it:</p>
+        <p>For chat messages to appear in the Stream Chat, you have to both
+            enable the channel and join the channel in Chatty normally.</p>
+        
+        <p>You can enable channels in the Stream Chat context menu (which will
+            offer to enable currently joined channels) or use the
+            following setting commands (channel all-lowercase):</p>
+        
         <ul>
             <li><code>/set streamChatChannels #&lt;channel&gt;</code> - To set
             the channel to only this one</li>
             <li><code>/add streamChatChannels #&lt;channel&gt;</code> - To add
-            a channel in addition to the ones already set</li>
+            a channel</li>
             <li><code>/remove streamChatChannels #&lt;channel&gt;</code> - To remove
-            a channel from the list</li>
+            a channel</li>
         </ul>
-        <p>Check out other <a href="help-setting_commands.html#streamchat">settings</a> that are also edited with setting commands.</p>
+        
+        <h3>Other settings</h3>
+        
+        <dl class="defList">
+            <dt><code>/set streamChatLogos &lt;size&gt;</code></dt>
+            <dd>Set the channel logo size (pixels). Set to <code>0</code> to disable.</dd>
+            <dd>Logos are only shown for channels that have been live during the
+                current session. Changes only affect new messages.</dd>
+            
+            <dt><code>/set streamChatMessageTimeout &lt;seconds&gt;</code></dt>
+            <dd>How long messages are displayed before they disappear. Set to
+                <code>-1</code> to disable.</dd>
+            
+            <dt><code>/set streamChatBottom &lt;0/1&gt;</code></dt>
+            <dd>Disable so messages start being inserted at the top.</dd>
+            <dd>Restart required to apply changes.</dd>
+            
+            <dt><code>/set streamChatResizable &lt;0/1&gt;</code></dt>
+            <dd>Whether Stream Chat dialog should be resizable.</dd>
+        </dl>
+        
         <p>In addition, make sure you have <code>Settings - Window - Restore dialogs</code>
             set to at least <code>Restore dialogs from last session</code> in order
             to keep the position/size of the Stream Chat dialog between sessions.</p>
@@ -1396,7 +1466,7 @@ MiniK   http://static-cdn.jtvnw.net/emoticons/v1/25/1.0     set:793 id:3287</pre
     </h2>
     <p>Using the <code>/proc</code> command you can start processes directly out
         of Chatty. An example of where this is already integrated into Chatty is
-        starting Livestreamer, however this is a more basic implementation.
+        starting Streamlink, however this is a more basic implementation.
         <em>This is probably only interesting for advanced users.</em></p>
     
     <ul>
@@ -1455,12 +1525,11 @@ MiniK   http://static-cdn.jtvnw.net/emoticons/v1/25/1.0     set:793 id:3287</pre
             separating them with a comma)</dd>
         
         <dt><code>-ds</code></dt>
-        <dd>Don't save settings on exit (settings are everything that is
-                saved between sessions like login data, always on top, ..)</dd>
+        <dd>Don't save settings automatically (they can still be saved manually
+            via "Main - Save..")</dd>
         
         <dt><code>-cd</code></dt>
-        <dd>Use current working directory (usually the directory you
-                start Chatty from) for saving/loading settings and other files.
+        <dd>Use current working directory as settings directory.
                 This can be useful to make Chatty more portable or use several
                 different setting files on the same computer.
                 <a href="help-guide_folders.html">More information..</a></dd>
@@ -1468,7 +1537,11 @@ MiniK   http://static-cdn.jtvnw.net/emoticons/v1/25/1.0     set:793 id:3287</pre
         <dt><code>-d &lt;dir&gt;</code></dt>
         <dd>Same as <code>-cd</code>, except that you directly specify the
             settings directory to use. The specified directory has to already
-            exist.</dd>
+            exist (even if you just created an empty directory for it).</dd>
+        
+        <dt><code>-portable</code></dt>
+        <dd>Creates a directory called "portable_settings" next to where the
+            "Chatty.jar" is located and uses that as settings directory.</dd>
         
         <dt><code>-set:&lt;settingName&gt; &lt;setting value&gt;</code></dt>
         <dd>Change any setting that can be edited via the <code>/set</code>
@@ -1488,6 +1561,12 @@ MiniK   http://static-cdn.jtvnw.net/emoticons/v1/25/1.0     set:793 id:3287</pre
             no instance of Chatty will be able to start.</dd>
         <dd>Currently only the <code>-channel</code> parameter is used when 
             forwarded to an already running instance (joining the channel).</dd>
+        
+        <dt><code>-cc &lt;name&gt; [parameters]</code></dt>
+        <dd>Execute the Custom Command with the given name on start. The
+            parameters are optional. When used in combination with
+            <code>-single</code>, the command will be executed on the already
+            running instance.</dd>
     </dl>
 
     <h2>

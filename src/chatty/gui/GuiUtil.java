@@ -10,6 +10,7 @@ import chatty.util.StringUtil;
 import chatty.util.commands.CustomCommand;
 import chatty.util.commands.Parameters;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
@@ -33,9 +34,15 @@ import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyVetoException;
 import java.beans.VetoableChangeListener;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.StringTokenizer;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
@@ -46,6 +53,7 @@ import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRootPane;
@@ -118,17 +126,7 @@ public class GuiUtil {
         JOptionPane p = new JOptionPane(message, messageType, optionType);
         p.setOptions(options);
         final JDialog d = p.createDialog(parent, title);
-        d.setAutoRequestFocus(false);
-        d.setFocusableWindowState(false);
-        // Make focusable after showing the dialog, so that it can be focused
-        // by the user, but doesn't steal focus from the user when it opens.
-        SwingUtilities.invokeLater(new Runnable() {
-
-            @Override
-            public void run() {
-                d.setFocusableWindowState(true);
-            }
-        });
+        setNonAutoFocus(d);
         d.setVisible(true);
         // Find index of result
         Object value = p.getValue();
@@ -138,6 +136,22 @@ public class GuiUtil {
             }
         }
         return -1;
+    }
+    
+    /**
+     * Configure the given window to not take focus immediately. It will be
+     * able to take focus afterwards.
+     * 
+     * @param w 
+     */
+    public static void setNonAutoFocus(Window w) {
+        w.setAutoRequestFocus(false);
+        w.setFocusableWindowState(false);
+        // Make focusable after showing the dialog, so that it can be focused
+        // by the user, but doesn't steal focus from the user when it opens.
+        SwingUtilities.invokeLater(() -> {
+            w.setFocusableWindowState(true);
+        });
     }
     
     public static void showNonModalMessage(Component parent, String title, String message, int type) {
@@ -343,14 +357,26 @@ public class GuiUtil {
     
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            JFrame dialog = new JFrame();
-            dialog.setSize(100, 100);
-            dialog.setLocationRelativeTo(null);
-            dialog.setVisible(true);
-            JButton button = new JButton("Shake");
-            button.addActionListener(e -> shake(dialog, 2, 2));
-            dialog.add(button);
-            dialog.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+            try {
+                JFrame dialog = new JFrame();
+                dialog.setSize(100, 100);
+                dialog.setLocationRelativeTo(null);
+                dialog.setVisible(true);
+                JButton button = new JButton("Shake");
+                ImageIcon a = new ImageIcon(new URL("https://cdn.betterttv.net/emote/58487cc6f52be01a7ee5f205/1x"));
+                ImageIcon b = new ImageIcon(new URL("https://static-cdn.jtvnw.net/emoticons/v1/123171/1.0"));
+                button.addActionListener(e -> shake(dialog, 2, 2));
+                dialog.add(button, BorderLayout.NORTH);
+                LinkedHashMap<ImageIcon, Integer> map = new LinkedHashMap<>();
+                map.put(b, 0);
+                map.put(a, -8);
+                Debugging.command("overlayframe");
+                dialog.add(new JLabel("text", overlay(map), 0), BorderLayout.CENTER);
+                dialog.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+            }
+            catch (MalformedURLException ex) {
+                Logger.getLogger(GuiUtil.class.getName()).log(Level.SEVERE, null, ex);
+            }
         });
     }
     
@@ -608,6 +634,11 @@ public class GuiUtil {
         });
     }
     
+    public static void resetFocusTraversalKeys(Component comp) {
+        comp.setFocusTraversalKeys(KeyboardFocusManager.FORWARD_TRAVERSAL_KEYS, null);
+        comp.setFocusTraversalKeys(KeyboardFocusManager.BACKWARD_TRAVERSAL_KEYS, null);
+    }
+    
     public static void focusTest() {
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addVetoableChangeListener(new VetoableChangeListener() {
 
@@ -703,6 +734,136 @@ public class GuiUtil {
         icon.paintIcon(null, g, 0, 0);
         g.dispose();
         return new ImageIcon(img.getScaledInstance(w, h, Image.SCALE_SMOOTH));
+    }
+    
+    /**
+     * If the given icon is null, load icon with the given name instead.
+     * 
+     * @param icon The icon
+     * @param c Load the fallback icon relative to this class
+     * @param name The file name in the JAR
+     * @return The given icon, or the fallback icon loaded from the JAR
+     */
+    public static Icon getFallbackIcon(Icon icon, Class c, String name) {
+        if (icon == null) {
+            return getIcon(c, name);
+        }
+        return icon;
+    }
+    
+    public static ImageIcon getIcon(Object o, String name) {
+        return getIcon(o.getClass(), name);
+    }
+    
+    public static ImageIcon getIcon(Class c, String name) {
+        return new ImageIcon(Toolkit.getDefaultToolkit().createImage(c.getResource(name)));
+    }
+    
+    /**
+     * Combine the two given icons horizontally into a new icon.
+     * 
+     * @param a The left icon in the resulting icon
+     * @param b The right icon in the resulting icon
+     * @param space Space between the icons in pixels
+     * @return The new icon
+     */
+    public static ImageIcon combineIcons(ImageIcon a, ImageIcon b, int space) {
+        int width = a.getIconWidth() + b.getIconWidth() + space;
+        int height = Math.max(a.getIconHeight(), b.getIconHeight());
+        BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = img.createGraphics();
+        g.drawImage(a.getImage(), 0, 0, null);
+        g.drawImage(b.getImage(), a.getIconWidth() + space, 0, null);
+        g.dispose();
+        return new ImageIcon(img);
+    }
+    
+    public static ImageIcon createEmptyIcon(int width, int height) {
+        BufferedImage res = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        return new ImageIcon(res);
+    }
+    
+    public static ImageIcon overlay(LinkedHashMap<ImageIcon, Integer> overlay) {
+        if (overlay == null || overlay.isEmpty()) {
+            return null;
+        }
+        if (overlay.size() == 1) {
+            return overlay.entrySet().iterator().next().getKey();
+        }
+        ImageIcon base = null;
+        int width = 0;
+        int height = 0;
+        int oh = 0;
+        Iterator<Map.Entry<ImageIcon, Integer>> it = overlay.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<ImageIcon, Integer> entry = it.next();
+            ImageIcon icon = entry.getKey();
+            if (base == null) {
+                base = entry.getKey();
+            }
+            width = Integer.max(width, icon.getIconWidth());
+            height = Integer.max(height, icon.getIconHeight());
+            int offset = Math.abs((int)(entry.getValue()/100.0*icon.getIconHeight()));
+            int inclOffset = icon.getIconHeight()+offset;
+            if (inclOffset > height) {
+                oh += inclOffset - height;
+                height = inclOffset;
+            }
+        }
+        BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = img.createGraphics();
+        Iterator<Map.Entry<ImageIcon, Integer>> it2 = overlay.entrySet().iterator();
+        while (it2.hasNext()) {
+            Map.Entry<ImageIcon, Integer> entry = it2.next();
+            ImageIcon icon = entry.getKey();
+            int offset = (int)(entry.getValue()/100.0*icon.getIconHeight());
+            g.drawImage(icon.getImage(),
+                    (width - icon.getIconWidth()) / 2,
+                    (height - icon.getIconHeight()) / 2 + offset + oh,
+                    null);
+        }
+        if (Debugging.isEnabled("overlayframe")) {
+            g.setColor(Color.BLACK);
+            g.drawRect(0, 0, width - 1, height - 1);
+        }
+        g.dispose();
+        return new ImageIcon(img);
+    }
+    
+    /**
+     * Run in the EDT, either by running it directly if already in the EDT or
+     * by using {@link SwingUtilities#invokeAndWait(Runnable)}.
+     * 
+     * @param runnable What to execute
+     * @param description Used for logging when an error occurs
+     */
+    public static void edtAndWait(Runnable runnable, String description) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            runnable.run();
+        }
+        else {
+            try {
+                SwingUtilities.invokeAndWait(runnable);
+            }
+            catch (Exception ex) {
+                LOGGER.warning("Failed to execute edtAndWait ("+description+"): "+ex);
+            }
+        }
+    }
+    
+    /**
+     * Run in the EDT, either by running it directly if already in the EDT or
+     * by using {@link SwingUtilities#invokeLater(Runnable)}.
+     * 
+     * @param runnable 
+     */
+    public static void edt(Runnable runnable) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            runnable.run();
+        }
+        else {
+            SwingUtilities.invokeLater(runnable);
+        }
     }
     
 }

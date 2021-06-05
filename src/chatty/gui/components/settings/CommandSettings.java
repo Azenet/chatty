@@ -35,7 +35,6 @@ public class CommandSettings extends SettingsPanel {
     
     private static final String INFO_HEADER = "<html>"
             + "<style type='text/css'>"
-            + "code { background: white; color: black; }"
             + "p { margin: 2px; }"
             + "dt { margin-top: 8px; }"
             + "dd { margin-left: 10px; margin-top: 4px; }"
@@ -46,8 +45,11 @@ public class CommandSettings extends SettingsPanel {
     private static final String INFO_COMMANDS = INFO_HEADER
             +SettingsUtil.getInfo("info-commands.html", null);
     
+    private final SettingsDialog d;
+    
     public CommandSettings(SettingsDialog d) {
         super(true);
+        this.d = d;
         
         JPanel base = addTitledPanel("Custom Commands", 0, true);
         
@@ -62,15 +64,7 @@ public class CommandSettings extends SettingsPanel {
                 return input.trim();
             }
         });
-        items.setTester(new Editor.Tester() {
-
-            @Override
-            public String test(Window parent, Component component, int x, int y, String value) {
-                CustomCommand command = CustomCommands.parseCommandWithName(value);
-                showCommandInfoPopup(component, command);
-                return null;
-            }
-        });
+        items.setTester(createCommandTester());
         items.setInfo(INFO_COMMANDS);
         items.setInfoLinkLabelListener(d.getLinkLabelListener());
         gbc.fill = GridBagConstraints.BOTH;
@@ -134,57 +128,49 @@ public class CommandSettings extends SettingsPanel {
             
         };
         
-        gbc = d.makeGbc(0, 2, 1, 1);
+        addSetting("channelContextMenu", "channelMenu", 0, menus, menuTester);
+        addSetting("streamsContextMenu", "streamsMenu", 1, menus, menuTester);
+        addSetting("userContextMenu", "userMenu", 2, menus, menuTester);
+        addSetting("timeoutButtons", "userDialog", 3, menus, userDialogTester);
+        addSetting("textContextMenu", "textMenu", 4, menus, menuTester);
+        addSetting("adminContextMenu", "adminMenu", 5, menus, menuTester);
+        menus.add(d.addSimpleBooleanSetting("menuCommandLabels"), SettingsDialog.makeGbc(0, 6, 2, 1, GridBagConstraints.WEST));
+    }
+    
+    private void addSetting(String settingName, String infoName, int y, JPanel panel, Editor.Tester tester) {
+        GridBagConstraints gbc;
+        JLabel label = SettingsUtil.createLabel(settingName);
+        gbc = d.makeGbc(0, y, 1, 1);
         gbc.anchor = GridBagConstraints.EAST;
-        menus.add(d.createLabel("userContextMenu"), gbc);
+        panel.add(label, gbc);
         
-        gbc = d.makeGbc(1, 2, 1, 1);
-        EditorStringSetting userContextMenu = d.addEditorStringSetting(
-                "userContextMenu", 20, true, "Edit User Context Menu:", true,
-                getInfo("userMenu"), menuTester);
-        userContextMenu.setLinkLabelListener(d.getLinkLabelListener());
-        menus.add(userContextMenu, gbc);
-        
-        gbc = d.makeGbc(0, 0, 1, 1);
-        gbc.anchor = GridBagConstraints.EAST;
-        menus.add(d.createLabel("channelContextMenu"), gbc);
-        
-        gbc = d.makeGbc(1, 0, 1, 1);
-        EditorStringSetting channelContextMenu = d.addEditorStringSetting(
-                "channelContextMenu", 20, true, "Edit Channel Context Menu", true,
-                getInfo("channelMenu"), menuTester);
-        channelContextMenu.setLinkLabelListener(d.getLinkLabelListener());
-        menus.add(channelContextMenu, gbc);
-        
-        gbc = d.makeGbc(0, 1, 1, 1);
-        gbc.anchor = GridBagConstraints.EAST;
-        menus.add(d.createLabel("streamsContextMenu"), gbc);
-        
-        gbc = d.makeGbc(1, 1, 1, 1);
-        EditorStringSetting streamsContextMenu = d.addEditorStringSetting(
-                "streamsContextMenu", 20, true, "Edit Streams Context Menu", true,
-                getInfo("streamsMenu"), menuTester);
-        streamsContextMenu.setLinkLabelListener(d.getLinkLabelListener());
-        menus.add(streamsContextMenu, gbc);
-        
-        gbc = d.makeGbc(0, 3, 1, 1);
-        gbc.anchor = GridBagConstraints.EAST;
-        menus.add(d.createLabel("timeoutButtons"), gbc);
-        
-        gbc = d.makeGbc(1, 3, 1, 1);
-        EditorStringSetting userDialogButtons = d.addEditorStringSetting(
-                "timeoutButtons", 20, true, "Edit User Dialog Buttons", true,
-                getInfo("userDialog"), userDialogTester);
-        userDialogButtons.setLinkLabelListener(d.getLinkLabelListener());
-        menus.add(userDialogButtons, gbc);
-        
+        gbc = d.makeGbc(1, y, 1, 1);
+        EditorStringSetting setting = d.addEditorStringSetting(
+                settingName, 20, true, label.getText(), true,
+                getInfo(infoName), tester);
+        label.setLabelFor(setting);
+        setting.setLinkLabelListener(d.getLinkLabelListener());
+        panel.add(setting, gbc);
+    }
+    
+    public static Editor.Tester createCommandTester() {
+        return new Editor.Tester() {
+
+            @Override
+            public String test(Window parent, Component component, int x, int y, String value) {
+                CustomCommand command = CustomCommands.parseCommandWithName(value);
+                showCommandInfoPopup(component, command);
+                return null;
+            }
+        };
     }
     
     public static void showCommandInfoPopup(Component parent, CustomCommand command) {
         String message = "<p style='font-family:sans-serif;'>This shows how the "
                 + "parser understands the part to be executed. It may not be "
                 + "very obvious what it means, but it can be helpful for "
-                + "debugging.</p><br />";
+                + "debugging. If no error is shown here, it's at least formally "
+                + "correct.</p><br />";
         if (command == null) {
             message += "No command.";
         } else if (command.hasError()) {
@@ -204,6 +190,9 @@ public class CommandSettings extends SettingsPanel {
     }
     
     public static String formatCommandInfo(String input) {
+        if (input == null) {
+            return "<em>Empty</em>";
+        }
         return Helper.htmlspecialchars_encode(input)
                 .replace("\n", "<br>").replace(" ", "&nbsp;");
     }

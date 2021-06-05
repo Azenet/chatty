@@ -31,7 +31,6 @@ public class MsgColorManager {
     
     public MsgColorManager(Settings settings) {
         this.settings = settings;
-        loadFromSettings();
     }
     
     /**
@@ -45,7 +44,7 @@ public class MsgColorManager {
      * <p>New format:<br />
      * <code>[id],[foreground]/[enabled]/[background]/[enabled]</p>
      */
-    private void loadFromSettings() {
+    public synchronized void loadFromSettings() {
         List<String> loadedList = new LinkedList<>();
         settings.getList(DATA_SETTING, loadedList);
         List<MsgColorItem> loadedData = new ArrayList<>();
@@ -122,25 +121,25 @@ public class MsgColorManager {
      * @param text
      * @return 
      */
-    public synchronized ColorItem getColor(HighlightItem.Type type, User user,
+    public synchronized ColorItem getColor(HighlightItem.Type type, User user, User localUser,
             String text, String channel, MsgTags tags, Addressbook ab) {
         if (data == null || !settings.getBoolean(ENABLED_SETTING)) {
             return EMPTY;
         }
         for (MsgColorItem item : data) {
-            if (item.matches(type, text, channel, ab, user, tags)) {
+            if (item.matches(type, text, channel, ab, user, localUser, tags)) {
                 return item;
             }
         }
         return EMPTY;
     }
     
-    public synchronized ColorItem getMsgColor(User user, String text, MsgTags tags) {
-        return getColor(HighlightItem.Type.REGULAR, user, text, user.getChannel(), tags, user.getAddressbook());
+    public synchronized ColorItem getMsgColor(User user, User localUser, String text, MsgTags tags) {
+        return getColor(HighlightItem.Type.REGULAR, user, localUser, text, user.getChannel(), tags, user.getAddressbook());
     }
     
-    public synchronized ColorItem getInfoColor(String text, String channel, Addressbook ab, User user, MsgTags tags) {
-        return getColor(HighlightItem.Type.INFO, user, text, channel, tags, ab);
+    public synchronized ColorItem getInfoColor(String text, String channel, Addressbook ab, User user, User localUser, MsgTags tags) {
+        return getColor(HighlightItem.Type.INFO, user, localUser, text, channel, tags, ab);
     }
     
 }

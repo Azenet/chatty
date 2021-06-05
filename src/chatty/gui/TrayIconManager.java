@@ -1,6 +1,9 @@
 
 package chatty.gui;
 
+import chatty.lang.Language;
+import chatty.util.IconManager;
+import chatty.util.IconManager.CustomIcon;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -31,23 +34,17 @@ public class TrayIconManager {
             tray = SystemTray.getSystemTray();
             
             popup = new PopupMenu();
-            MenuItem showItem = new MenuItem("Show");
+            MenuItem showItem = new MenuItem(Language.getString("trayCm.show"));
             showItem.setActionCommand("show");
             popup.add(showItem);
-            MenuItem exitItem = new MenuItem("Exit");
+            MenuItem exitItem = new MenuItem(Language.getString("trayCm.exit"));
             exitItem.setActionCommand("exit");
             popup.add(exitItem);
 
             Dimension iconDimension = tray.getTrayIconSize();
             int size = Math.min(iconDimension.width, iconDimension.height);
             LOGGER.info("Creating TrayIcon ("+iconDimension.width+"x"+iconDimension.height+")");
-            Image image;
-            if (size <= 16) {
-                image = createImage("app_main_16.png", size);
-            } else {
-                image = createImage("app_main_64.png", size);
-            }
-            
+            Image image = IconManager.getTrayIcon(size);
             trayIcon = new TrayIcon(image, "Chatty");
             trayIcon.setImageAutoSize(true);
             trayIcon.setPopupMenu(popup);
@@ -56,21 +53,6 @@ public class TrayIconManager {
             trayIcon = null;
             popup = null;
         }
-    }
-    
-    /**
-     * Load and resize image. Assumes width == height.
-     * 
-     * @param name
-     * @param size
-     * @return 
-     */
-    private Image createImage(String name, int size) {
-        ImageIcon icon = new ImageIcon(Toolkit.getDefaultToolkit().createImage(getClass().getResource(name)));
-        if (icon.getIconWidth() != size) {
-            return icon.getImage().getScaledInstance(size, size, Image.SCALE_SMOOTH);
-        }
-        return icon.getImage();
     }
     
     /**

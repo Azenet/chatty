@@ -36,7 +36,11 @@ public class Logging {
     
     private final RingBuffer<LogRecord> lastMessages = new RingBuffer<>(8);
     
+    private static TwitchClient client;
+    
     public Logging(final TwitchClient client) {
+        Logging.client = client;
+        
         createLogDir();
         
         // Remove default handlers
@@ -68,21 +72,21 @@ public class Logging {
             fileSession.setFilter(new FileFilter());
             Logger.getLogger("").addHandler(fileSession);
         } catch (IOException | SecurityException ex) {
-            Logger.getLogger(Logging.class.getName()).log(Level.WARNING, null, ex);
+            fileWarning(ex);
         }
         
         // Add handler for the GUI (display errors, log into debug window)
-        Logger.getLogger("").addHandler(new Handler() {
+        Handler guiHandler = new Handler() {
 
             @Override
             public void publish(LogRecord record) {
                 if (record.getLevel() != USERINFO) {
                     client.debug(record.getMessage());
                     // WebsocketClient/WebsocketManager
-                    if (record.getSourceClassName().startsWith("chatty.util.ffz.Websocket")) {
+                    if (record.getMessage().startsWith("[FFZ-WS]")) {
                         client.debugFFZ(record.getMessage());
                     }
-                    if (record.getSourceClassName().startsWith("chatty.util.api.pubsub.")) {
+                    if (record.getMessage().startsWith("[PubSub]")) {
                         client.debugPubSub(record.getMessage());
                     }
                 }
@@ -104,7 +108,9 @@ public class Logging {
             @Override
             public void close() throws SecurityException {
             }
-        });
+        };
+        guiHandler.setLevel(Level.INFO);
+        Logger.getLogger("").addHandler(guiHandler);
     }
     
     /**
@@ -185,7 +191,7 @@ public class Logging {
 
                 @Override
                 public String format(LogRecord record) {
-                    return String.format("[%1$tT] %2$s\n",
+                    return String.format("[%1$tF %1$tT/%1$tL] %2$s\n",
                             new Date(record.getMillis()),
                             record.getMessage());
                 }
@@ -193,7 +199,7 @@ public class Logging {
             file.setLevel(Level.INFO);
             return file;
         } catch (IOException | SecurityException ex) {
-            Logger.getLogger(Logging.class.getName()).log(Level.WARNING, null, ex);
+            fileWarning(ex);
         }
         return null;
     }
@@ -202,7 +208,15 @@ public class Logging {
         try {
             Files.createDirectories(Paths.get(Chatty.getDebugLogDirectory()));
         } catch (IOException ex) {
-            Logger.getLogger(Logging.class.getName()).log(Level.SEVERE, null, ex);
+            fileWarning(ex);
+        }
+    }
+    
+    private static void fileWarning(Throwable ex) {
+        if (client != null) {
+            client.warning(String.format("Failed creating log files. Check that %s can be written to. (%s)",
+                    Chatty.getDebugLogDirectory(),
+                    ex));
         }
     }
     

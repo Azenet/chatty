@@ -85,6 +85,8 @@ public class UserContextMenu extends ContextMenu {
         addSeparator(MISC_MENU);
         addItem("setcolor", Language.getString("userCm.setColor"), MISC_MENU);
         addItem("setname", Language.getString("userCm.setName"), MISC_MENU);
+        addSeparator(MISC_MENU);
+        addItem("notes", "Notes", MISC_MENU);
         
         // Get the preset categories from the addressbook, which may be empty
         // if not addressbook is set to this user
@@ -112,10 +114,10 @@ public class UserContextMenu extends ContextMenu {
             // Add "add" or "edit" buttons depending on whether the user is
             // already in the addressbook
             if (userCategories != null) {
-                addItem("addressbookEdit", "Edit", submenu);
-                addItem("addressbookRemove", "Remove", submenu);
+                addItem("addressbookEdit", Language.getString("dialog.button.edit"), submenu);
+                addItem("addressbookRemove", Language.getString("dialog.button.remove"), submenu);
             } else {
-                addItem("addressbookEdit", "Add", submenu);
+                addItem("addressbookEdit", Language.getString("dialog.button.add"), submenu);
             }
         }
 

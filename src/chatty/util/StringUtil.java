@@ -9,10 +9,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -54,11 +58,34 @@ public class StringUtil {
         return join(items, delimiter, -1, -1);
     }
     
+    public static String join(Collection<?> items, String delimiter, Function<Object, String> func) {
+        return join(items, delimiter, -1, -1, func);
+    }
+    
     public static String join(Collection<?> items, String delimiter, int start) {
         return join(items, delimiter, start, -1);
     }
     
     public static String join(Collection<?> items, String delimiter, int start, int end) {
+        return join(items, delimiter, start, end, null);
+    }
+    
+    /**
+     * Join the items in the given Collection.
+     * 
+     * @param items The Collection
+     * @param delimiter The delimiter, put in between items
+     * @param start The index of the first item to include in the result,
+     * negative values are interpreted as 0, values larger than the Collection
+     * will simply result in an empty result
+     * @param end The index after the last item to include in the result,
+     * negative values or values larger than the Collection will include all
+     * items after the start (when start is 0, then this is the amount of items
+     * included)
+     * @param func Transform an element to a String
+     * @return The resulting String (never null)
+     */
+    public static String join(Collection<?> items, String delimiter, int start, int end, Function<Object, String> func) {
         if (items == null || items.isEmpty()) {
             return "";
         }
@@ -69,7 +96,7 @@ public class StringUtil {
         Iterator<?> it = items.iterator();
         int i = 0;
         while (it.hasNext()) {
-            String next = it.next().toString();
+            String next = func != null ? func.apply(it.next()) : it.next().toString();
             if (i >= start && i < end) {
                 b.append(next);
                 if (it.hasNext() && i+1 < end) {
@@ -194,6 +221,23 @@ public class StringUtil {
             return null;
         }
         return LINEBREAK_CHARACTERS.matcher(s).replaceAll(" ");
+    }
+    
+    /**
+     * Removes all whitespace from a String.
+     * 
+     * @param input
+     * @return 
+     */
+    public static String removeWhitespace(String input) {
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < input.length(); i++) {
+            char c = input.charAt(i);
+            if (!Character.isWhitespace(c)) {
+                b.append(c);
+            }
+        }
+        return b.toString();
     }
     
     public static String append(String a, String sep, String b) {
@@ -408,8 +452,12 @@ public class StringUtil {
         return result;
     }
     
-    public static final NullComparator NULL_COMPARATOR = new NullComparator();
+    public static String[] splitLines(String input) {
+        return input.split("\r\n|\n|\r");
+    }
     
+    public static final NullComparator NULL_COMPARATOR = new NullComparator();
+
     private static class NullComparator implements Comparator<String> {
 
         @Override
@@ -451,6 +499,168 @@ public class StringUtil {
             return null;
         }
         return input[ThreadLocalRandom.current().nextInt(input.length)];
+    }
+    
+    public static int getLength(String content) {
+        if (content == null) {
+            return 0;
+        }
+        return content.length();
+    }
+    
+    /**
+     * Gets the given substring or the fallback if an error occurs.
+     * 
+     * @param input Where to get the substring from
+     * @param start The start index (inclusive)
+     * @param end The end index (exclusive)
+     * @param fallback The fallback to use when an error occurs
+     * @return The substring or fallback
+     */
+    public static String substring(String input, int start, int end, String fallback) {
+        try {
+            return input.substring(start, end);
+        }
+        catch (Exception ex) {
+            return fallback;
+        }
+    }
+    
+    /**
+     * See {@link replaceFunc(String, Pattern, Function)}.
+     * 
+     * @param input
+     * @param regex
+     * @param func
+     * @return 
+     */
+    public static String replaceFunc(String input, String regex, Function<Matcher, String> func) {
+        return replaceFunc(input, Pattern.compile(regex), func);
+    }
+    
+    /**
+     * Calls the given function for every match to get the replacement.
+     * 
+     * @param input The text to apply the replace to
+     * @param pattern The Pattern object to use
+     * @param func The function to apply to each match
+     * @return The input with replacements performed
+     */
+    public static String replaceFunc(String input, Pattern pattern, Function<Matcher, String> func) {
+        StringBuffer b = new StringBuffer();
+        Matcher m = pattern.matcher(input);
+        while (m.find()) {
+            m.appendReplacement(b, Matcher.quoteReplacement(func.apply(m)));
+        }
+        m.appendTail(b);
+        return b.toString();
+    }
+    
+    /**
+     * Test the similarity between two Strings.
+     * 
+     * {@link prepareForSimilarityComparison(String)} should normally be applied
+     * to the Strings first.
+     * 
+     * @param a One String (must not be null)
+     * @param b Another String (must not be null)
+     * @param min The minimum similarity score the Strings need to reach
+     * @return true if the Strings reach at least min similiarty score
+     */
+    public static boolean checkSimilarity(String a, String b, float min) {
+        if (a.isEmpty() && b.isEmpty()) {
+            return true;
+        }
+        if (getLengthSimilarity(a, b) >= min) {
+            return getSimilarity(a, b) >= min;
+        }
+        return false;
+    }
+    
+    public static float getLengthSimilarity(String a, String b) {
+        return Math.min(a.length(), b.length()) / (float) Math.max(a.length(), b.length()) + 0.2f;
+    }
+    
+    /**
+     * Prepare for comparison by removing whitespace. This is in a separate
+     * function so that it's not applied more often than necessary.
+     * 
+     * @param input
+     * @return 
+     */
+    public static String prepareForSimilarityComparison(String input) {
+        return removeWhitespace(input);
+    }
+    
+    /**
+     * Calculate the similarity between the given Strings. Basicially splits
+     * each String into overlapping 2-long parts (bigrams) and counts how many
+     * of them appear in both Strings, normalized by the number of possible
+     * parts.
+     * 
+     * This function does not remove whitespace or change case of the String. If
+     * required, this should be done before feeding the Strings into this, which
+     * allows the Strings to be changed just once (e.g. if comparing one String
+     * to many different Strings).
+     * 
+     * This is somewhat based on the compareTwoStrings method found here (MIT
+     * License):
+     * https://github.com/aceakash/string-similarity/blob/master/src/index.js
+     * 
+     * This appears to be based on the Sørensen–Dice coefficient, however other
+     * implementations of it sometimes don't look at the count of each bigram,
+     * but instead use a Set of bigrams and compare that (so something like
+     * "aa" would be equal to "aaaaaaaaaaaaaa". I'm not sure what the "correct"
+     * way to implement it is, however this version appears to work better.
+     * 
+     * @param a One String (must not be null)
+     * @param b Another String (must not be null)
+     * @return A float between 0 (not at all similiar) and 1.
+     */
+    public static float getSimilarity(String a, String b) {
+        if (a.isEmpty() && b.isEmpty()) {
+            return 1;
+        }
+        if (a.isEmpty() || b.isEmpty()) {
+            return 0;
+        }
+        if (a.equals(b)) {
+            return 1;
+        }
+        if (a.length() < 2 || b.length() < 2) {
+            return 0;
+        }
+        //--------------------------
+        // First String
+        //--------------------------
+        // Create a map of bigram counts for the first String
+        Map<Long, Integer> m = new HashMap<>(a.length());
+        for (int i = 0; i < a.length() - 1; i++) {
+            /**
+             * Encoding two chars in one int seemed to have slightly better
+             * performance than creating a lot of Strings.
+             */
+            Long part = (long) (a.charAt(i) + (a.charAt(i + 1) << 16));
+            m.put(part, m.getOrDefault(part, 0) + 1);
+        }
+        //--------------------------
+        // Second String
+        //--------------------------
+        // Count how many of the bigrams appear in both Strings
+        int count = 0;
+        for (int i = 0; i < b.length() - 1; i++) {
+            Long part = (long) (b.charAt(i) + (b.charAt(i + 1) << 16));
+            int c = m.getOrDefault(part, 0);
+            if (c > 0) {
+                count++;
+                m.put(part, c - 1);
+            }
+        }
+        /**
+         * Each String contains "a.length() - 1" bigrams, so this is dividing
+         * by the number of total possible bigrams.
+         */
+        return 2f * count / (a.length() + b.length() - 2);
     }
     
     public static final void main(String[] args) {

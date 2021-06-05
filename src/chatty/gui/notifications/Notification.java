@@ -58,7 +58,8 @@ public class Notification {
                     TypeOption.NEW_STREAM,
                     TypeOption.LIVE,
                     TypeOption.NO_UPTIME,
-                    TypeOption.FAV_CHAN));
+                    TypeOption.FAV_CHAN,
+                    TypeOption.FAV_GAME));
         }
         
         private static List<TypeOption> createMessageSubtypes() {
@@ -79,6 +80,7 @@ public class Notification {
         LIVE("noOffline"),
         OWN_MSG("own"),
         FAV_CHAN("fav"),
+        FAV_GAME("favGame"),
         CONTAINS_BITS("bits");
         
         public String id;
@@ -90,7 +92,7 @@ public class Notification {
     }
     
     public enum State {
-        ALWAYS(1, "Enabled"),
+        ALWAYS(1, "Always enabled"),
         OFF(0, "Off"),
         CHANNEL_ACTIVE(2, "Chan focused"),
         CHANNEL_NOT_ACTIVE(3, "Chan not focused"),
@@ -234,7 +236,7 @@ public class Notification {
         this.channel = tempChannel == null || tempChannel.isEmpty() ? null : Helper.toChannel(tempChannel);
         this.matcher = StringUtil.trim(builder.matcher);
         if (matcher != null && !matcher.isEmpty()) {
-            this.matcherItem = new Highlighter.HighlightItem(matcher);
+            this.matcherItem = new Highlighter.HighlightItem(matcher, "notification");
         } else {
             this.matcherItem = null;
         }
@@ -291,11 +293,11 @@ public class Notification {
         return channel.equalsIgnoreCase(this.channel);
     }
     
-    public boolean matches(String text, String channel, Addressbook ab, User user, MsgTags tags) {
+    public boolean matches(String text, String channel, Addressbook ab, User user, User localUser, MsgTags tags) {
         if (matcherItem == null || text == null) {
             return true;
         }
-        return matcherItem.matches(Highlighter.HighlightItem.Type.ANY, text, null, channel, ab, user, tags);
+        return matcherItem.matches(Highlighter.HighlightItem.Type.ANY, text, null, channel, ab, user, localUser, tags);
     }
     
     public boolean hasChannel() {
@@ -382,6 +384,11 @@ public class Notification {
             }
         }
         return result;
+    }
+    
+    @Override
+    public String toString() {
+        return "Event "+type.label+", Desktop Notification "+getDesktopState()+", Sound "+getSoundState();
     }
     
 }
